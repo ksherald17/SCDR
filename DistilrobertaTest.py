@@ -14,24 +14,22 @@ train_data.dropna(inplace=True)
 test_data.dropna(inplace=True)
 
 # 데이터 샘플링 비율 
-sampling_rate=0.4 
+sampling_rate=0.4
 train_sampled = train_data.sample(frac=sampling_rate, random_state=999)
 test_sampled = test_data.sample(frac=sampling_rate, random_state=999)
 
-naver_train_dataset = NaverDataset(train_data)
+naver_train_dataset = NaverDataset(train_sampled)
 train_loader = DataLoader(naver_train_dataset, batch_size=2, shuffle=True)
 
-# Bert 모델 from Hugging Face (모델에 관한 정보는 PPT 참조)
+# RoBerta 모델 from Hugging Face (모델에 관한 정보는 PPT 참조)
 device_name = "cuda" if torch.cuda.is_available() else "cpu"
 device = torch.device(device_name)
-# tokenizer = AutoTokenizer.from_pretrained('bert-base-multilingual-cased')
-tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased')
-model = AutoModelForSequenceClassification.from_pretrained('bert-base-multilingual-cased')
-# model = TFBertModel.from_pretrained("bert-base-multilingual-cased")
+tokenizer = AutoTokenizer.from_pretrained('distilroberta-base')
+model = AutoModelForSequenceClassification.from_pretrained('distilroberta-base')
 model.to(device)
 
-# Bert 모델을 토대로 학습하는 과정
-optimizer = Adam(model.parameters(), lr=1e-5)
+# Parameter 선정
+optimizer = Adam(model.parameters(), lr=1e-5) # SCDR에 제시된 learning rate
 itr = 1
 p_itr = 500
 epochs = 1
@@ -39,6 +37,7 @@ total_loss = 0
 total_len = 0
 total_correct = 0
 
+# Roberta 모델을 토대로 학습하는 과정
 model.train()
 for epoch in range(epochs):
     
@@ -71,7 +70,7 @@ for epoch in range(epochs):
 # evaluation
 model.eval()
 
-nsmc_eval_dataset = NaverDataset(test_data)
+nsmc_eval_dataset = NaverDataset(test_sampled)
 eval_loader = DataLoader(nsmc_eval_dataset, batch_size=8, shuffle=False)
 
 total_loss = 0
