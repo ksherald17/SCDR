@@ -1,6 +1,6 @@
 import torch
-from transformers import BertTokenizerFast, BertForTokenClassification
-from transformers import DistilBertForTokenClassification, AdamW, DataCollatorForTokenClassification
+from transformers import BertTokenizerFast, BertForTokenClassification, DistilBertForTokenClassification
+from transformers import AdamW, DataCollatorForTokenClassification
 from datasets import load_dataset
 from torch.utils.data import DataLoader
 
@@ -9,21 +9,24 @@ def main():
     tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
     dataset = load_dataset("conll2003")
 
+    # Extract the number of unique NER labels
+    num_labels = dataset['train'].features['ner_tags'].feature.num_classes
+
     # Function to tokenize and align labels for NER
     def tokenize_and_align_labels(examples):
         tokenized_inputs = tokenizer(examples['tokens'], truncation=True, padding="max_length", is_split_into_words=True)
         labels = []
         for i, label in enumerate(examples['ner_tags']):
-            word_ids = tokenized_inputs.word_ids(batch_index=i)  # get word id for each token
+            word_ids = tokenized_inputs.word_ids(batch_index=i)
             previous_word_idx = None
             label_ids = []
             for word_idx in word_ids:
                 if word_idx is None:
                     label_ids.append(-100)  # label for special tokens
                 elif word_idx != previous_word_idx:
-                    label_ids.append(label[word_idx])  # label for first token of a word
+                    label_ids.append(label[word_idx])  # label for the first token of a word
                 else:
-                    label_ids.append(-100)  # label for other tokens in a word
+                    label_ids.append(-100)  # label for subsequent tokens of the same word
                 previous_word_idx = word_idx
             labels.append(label_ids)
         tokenized_inputs["labels"] = labels
@@ -31,9 +34,6 @@ def main():
 
     # Tokenize all data splits and remove unneeded columns
     dataset = dataset.map(tokenize_and_align_labels, batched=True, remove_columns=["tokens", "pos_tags", "chunk_tags", "id"])
-
-    # Calculate the number of unique NER labels
-    num_labels = dataset['train'].features['ner_tags'].feature.num_classes
 
     # Load teacher model (BERT)
     teacher_model = BertForTokenClassification.from_pretrained("bert-base-uncased", num_labels=num_labels)
