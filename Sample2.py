@@ -15,6 +15,21 @@ def main():
     dataset = load_dataset("conll2003")
     num_labels = dataset['train'].features['ner_tags'].feature.num_classes
 
+    example_data = dataset["train"][0]
+    writer.add_text("Sample Data", f"Tokens: {example_data['tokens']}\nLabels: {example_data['labels']}")
+
+        # Sampling a subset of the data for quicker iterations
+    def sample_dataset(dataset, sample_size=0.1):
+        """ Randomly sample sample_size proportion of dataset for each split """
+        sampled = {}
+        for split in dataset.keys():
+            sampled_split = dataset[split].shuffle(seed=42).select(range(int(len(dataset[split]) * sample_size)))
+            sampled[split] = sampled_split
+        return sampled
+
+    dataset = sample_dataset(dataset, sample_size=0.1)  # Sample 10% of each split
+
+
     # Function to tokenize and align labels for NER
     def tokenize_and_align_labels(examples):
         tokenized_inputs = tokenizer(examples['tokens'], truncation=True, padding="max_length", is_split_into_words=True, return_token_type_ids=False)
@@ -32,8 +47,6 @@ def main():
     eval_dataset = dataset["validation"]
     test_dataset = dataset["test"]
 
-    sample_data = train_dataset[0]
-    writer.add_text("Sample Data", f"Tokens: {sample_data['tokens']}\nLabels: {sample_data['labels']}")
 
     # Load teacher and student models
     teacher_model = BertForTokenClassification.from_pretrained("bert-base-uncased", num_labels=num_labels)
