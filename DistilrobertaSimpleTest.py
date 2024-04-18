@@ -21,7 +21,7 @@ test_sampled = test_data.sample(frac=sampling_rate, random_state=999)
 naver_train_dataset = NaverDataset(train_sampled)
 train_loader = DataLoader(naver_train_dataset, batch_size=2, shuffle=True)
 
-# RoBerta 모델 from Hugging Face (모델에 관한 정보는 PPT 참조)
+# DistilroBerta 모델 from Hugging Face (모델에 관한 정보는 PPT 참조)
 device_name = "cuda" if torch.cuda.is_available() else "cpu"
 device = torch.device(device_name)
 tokenizer = AutoTokenizer.from_pretrained('distilroberta-base')

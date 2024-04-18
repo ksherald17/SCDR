@@ -1,0 +1,66 @@
+Some weights of BertForSequenceClassification were not initialized from the model checkpoint at bert-base-multilingual-cased and are newly initialized: ['classifier.bias', 'classifier.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+/Users/herald/Documents/SNU/SCDR/BertSimpleTest.py:56: UserWarning: Implicit dimension choice for softmax has been deprecated. Change the call to include dim=X as an argument.
+  pred = torch.argmax(Func.softmax(logits), dim=1)
+/Users/herald/Documents/SNU/SCDR/BertSimpleTest.py:90: UserWarning: Implicit dimension choice for softmax has been deprecated. Change the call to include dim=X as an argument.
+  pred = torch.argmax(Func.softmax(logits), dim=1)
+[Epoch 1/1] Iteration 500 -> Train Loss: 0.6769, Accuracy: 0.576
+[Epoch 1/1] Iteration 1000 -> Train Loss: 0.6054, Accuracy: 0.682
+[Epoch 1/1] Iteration 1500 -> Train Loss: 0.5318, Accuracy: 0.745
+[Epoch 1/1] Iteration 2000 -> Train Loss: 0.5415, Accuracy: 0.727
+[Epoch 1/1] Iteration 2500 -> Train Loss: 0.5156, Accuracy: 0.733
+[Epoch 1/1] Iteration 3000 -> Train Loss: 0.4808, Accuracy: 0.764
+[Epoch 1/1] Iteration 3500 -> Train Loss: 0.4976, Accuracy: 0.761
+[Epoch 1/1] Iteration 4000 -> Train Loss: 0.4749, Accuracy: 0.770
+[Epoch 1/1] Iteration 4500 -> Train Loss: 0.4815, Accuracy: 0.767
+[Epoch 1/1] Iteration 5000 -> Train Loss: 0.4712, Accuracy: 0.776
+[Epoch 1/1] Iteration 5500 -> Train Loss: 0.4536, Accuracy: 0.781
+[Epoch 1/1] Iteration 6000 -> Train Loss: 0.4676, Accuracy: 0.779
+[Epoch 1/1] Iteration 6500 -> Train Loss: 0.4416, Accuracy: 0.807
+[Epoch 1/1] Iteration 7000 -> Train Loss: 0.4486, Accuracy: 0.817
+[Epoch 1/1] Iteration 7500 -> Train Loss: 0.4280, Accuracy: 0.815
+[Epoch 1/1] Iteration 8000 -> Train Loss: 0.4502, Accuracy: 0.794
+[Epoch 1/1] Iteration 8500 -> Train Loss: 0.4392, Accuracy: 0.808
+[Epoch 1/1] Iteration 9000 -> Train Loss: 0.4110, Accuracy: 0.803
+[Epoch 1/1] Iteration 9500 -> Train Loss: 0.4407, Accuracy: 0.781
+[Epoch 1/1] Iteration 10000 -> Train Loss: 0.3953, Accuracy: 0.828
+[Epoch 1/1] Iteration 10500 -> Train Loss: 0.4012, Accuracy: 0.827
+[Epoch 1/1] Iteration 11000 -> Train Loss: 0.4194, Accuracy: 0.813
+[Epoch 1/1] Iteration 11500 -> Train Loss: 0.4194, Accuracy: 0.818
+[Epoch 1/1] Iteration 12000 -> Train Loss: 0.4496, Accuracy: 0.784
+[Epoch 1/1] Iteration 12500 -> Train Loss: 0.4212, Accuracy: 0.782
+[Epoch 1/1] Iteration 13000 -> Train Loss: 0.4085, Accuracy: 0.816
+[Epoch 1/1] Iteration 13500 -> Train Loss: 0.4166, Accuracy: 0.805
+[Epoch 1/1] Iteration 14000 -> Train Loss: 0.4199, Accuracy: 0.815
+[Epoch 1/1] Iteration 14500 -> Train Loss: 0.4298, Accuracy: 0.797
+[Epoch 1/1] Iteration 15000 -> Train Loss: 0.4240, Accuracy: 0.803
+[Epoch 1/1] Iteration 15500 -> Train Loss: 0.4119, Accuracy: 0.805
+[Epoch 1/1] Iteration 16000 -> Train Loss: 0.3953, Accuracy: 0.822
+[Epoch 1/1] Iteration 16500 -> Train Loss: 0.4009, Accuracy: 0.825
+[Epoch 1/1] Iteration 17000 -> Train Loss: 0.4204, Accuracy: 0.811
+[Epoch 1/1] Iteration 17500 -> Train Loss: 0.3875, Accuracy: 0.840
+[Epoch 1/1] Iteration 18000 -> Train Loss: 0.4243, Accuracy: 0.799
+[Epoch 1/1] Iteration 18500 -> Train Loss: 0.4003, Accuracy: 0.825
+[Epoch 1/1] Iteration 19000 -> Train Loss: 0.4068, Accuracy: 0.812
+[Epoch 1/1] Iteration 19500 -> Train Loss: 0.4209, Accuracy: 0.809
+[Epoch 1/1] Iteration 20000 -> Train Loss: 0.3844, Accuracy: 0.825
+[Epoch 1/1] Iteration 20500 -> Train Loss: 0.4035, Accuracy: 0.816
+[Epoch 1/1] Iteration 21000 -> Train Loss: 0.4200, Accuracy: 0.807
+[Epoch 1/1] Iteration 21500 -> Train Loss: 0.4102, Accuracy: 0.809
+[Epoch 1/1] Iteration 22000 -> Train Loss: 0.3922, Accuracy: 0.830
+[Epoch 1/1] Iteration 22500 -> Train Loss: 0.4016, Accuracy: 0.817
+[Epoch 1/1] Iteration 23000 -> Train Loss: 0.3724, Accuracy: 0.837
+[Epoch 1/1] Iteration 23500 -> Train Loss: 0.4105, Accuracy: 0.825
+[Epoch 1/1] Iteration 24000 -> Train Loss: 0.4111, Accuracy: 0.813
+[Epoch 1/1] Iteration 24500 -> Train Loss: 0.4125, Accuracy: 0.799
+[Epoch 1/1] Iteration 25000 -> Train Loss: 0.4062, Accuracy: 0.812
+[Epoch 1/1] Iteration 25500 -> Train Loss: 0.3976, Accuracy: 0.819
+[Epoch 1/1] Iteration 26000 -> Train Loss: 0.4013, Accuracy: 0.825
+[Epoch 1/1] Iteration 26500 -> Train Loss: 0.4050, Accuracy: 0.823
+[Epoch 1/1] Iteration 27000 -> Train Loss: 0.3860, Accuracy: 0.825
+[Epoch 1/1] Iteration 27500 -> Train Loss: 0.3898, Accuracy: 0.811
+[Epoch 1/1] Iteration 28000 -> Train Loss: 0.4092, Accuracy: 0.820
+[Epoch 1/1] Iteration 28500 -> Train Loss: 0.4068, Accuracy: 0.810
+[Epoch 1/1] Iteration 29000 -> Train Loss: 0.4820, Accuracy: 0.773
+[Epoch 1/1] Iteration 29500 -> Train Loss: 0.4388, Accuracy: 0.812
+Test accuracy:  0.8131406570328517
