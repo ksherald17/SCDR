@@ -16,7 +16,7 @@ def main():
     num_labels = dataset['train'].features['ner_tags'].feature.num_classes
 
     example_data = dataset["train"][0]
-    writer.add_text("Sample Data", f"Tokens: {example_data['tokens']}\nLabels: {example_data['labels']}")
+    writer.add_text("Sample Data", f"Tokens: {example_data['tokens']}\nTags: {example_data['ner_tags']}")
 
         # Sampling a subset of the data for quicker iterations
     def sample_dataset(dataset, sample_size=0.1):
