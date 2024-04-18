@@ -44,7 +44,7 @@ def main():
 
     # Prepare for training
     data_collator = DataCollatorForTokenClassification(tokenizer)
-    train_loader = DataLoader(dataset['train'], batch_size=8, collator=data_collator)
+    train_loader = DataLoader(dataset['train'], batch_size=8, collate_fn=data_collator)
     optimizer = AdamW(student_model.parameters(), lr=5e-5)
     temperature = 2.0
 
