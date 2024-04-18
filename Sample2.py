@@ -1,46 +1,45 @@
 import torch
-from transformers import BertTokenizer, BertForTokenClassification
+from transformers import BertTokenizerFast, BertForTokenClassification
 from transformers import DistilBertForTokenClassification, AdamW, DataCollatorForTokenClassification
 from datasets import load_dataset
 from torch.utils.data import DataLoader
 
 def main():
-    # Load tokenizer and datasets
-    tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+    # Load fast tokenizer and dataset
+    tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
     dataset = load_dataset("conll2003")
 
-    # Function to tokenize and align labels
+    # Function to tokenize and align labels for NER
     def tokenize_and_align_labels(examples):
         tokenized_inputs = tokenizer(examples['tokens'], truncation=True, padding="max_length", is_split_into_words=True)
         labels = []
         for i, label in enumerate(examples['ner_tags']):
-            word_ids = tokenized_inputs.word_ids(batch_index=i)
+            word_ids = tokenized_inputs.word_ids(batch_index=i)  # get word id for each token
             previous_word_idx = None
             label_ids = []
             for word_idx in word_ids:
                 if word_idx is None:
-                    label_ids.append(-100)  # Special token
+                    label_ids.append(-100)  # label for special tokens
                 elif word_idx != previous_word_idx:
-                    label_ids.append(label[word_idx])
+                    label_ids.append(label[word_idx])  # label for first token of a word
                 else:
-                    label_ids.append(-100)
+                    label_ids.append(-100)  # label for other tokens in a word
                 previous_word_idx = word_idx
             labels.append(label_ids)
         tokenized_inputs["labels"] = labels
         return tokenized_inputs
 
-    # Apply function to dataset
-    dataset = dataset.map(tokenize_and_align_labels, batched=True)
-    dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'labels'])
+    # Tokenize all data splits
+    dataset = dataset.map(tokenize_and_align_labels, batched=True, remove_columns=dataset["train"].column_names)
 
     # Load teacher model (BERT)
     teacher_model = BertForTokenClassification.from_pretrained("bert-base-uncased", num_labels=len(dataset['train'].features['labels'].feature.names))
-    teacher_model.eval()
+    teacher_model.eval()  # Set the teacher model to evaluation mode
 
     # Load student model (DistilBERT)
     student_model = DistilBertForTokenClassification.from_pretrained("distilbert-base-uncased", num_labels=len(dataset['train'].features['labels'].feature.names))
 
-    # Training setup
+    # Prepare for training
     data_collator = DataCollatorForTokenClassification(tokenizer)
     train_loader = DataLoader(dataset['train'], batch_size=8, collator=data_collator)
     optimizer = AdamW(student_model.parameters(), lr=5e-5)
