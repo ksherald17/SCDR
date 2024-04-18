@@ -3,6 +3,7 @@ from transformers import BertTokenizerFast, BertForTokenClassification, DistilBe
 from transformers import AdamW, DataCollatorForTokenClassification
 from datasets import load_dataset
 from torch.utils.data import DataLoader
+from sklearn.metrics import accuracy_score
 
 def main():
     # Load fast tokenizer and dataset
@@ -14,7 +15,6 @@ def main():
 
     # Function to tokenize and align labels for NER
     def tokenize_and_align_labels(examples):
-        # Note the removal of token_type_ids
         tokenized_inputs = tokenizer(examples['tokens'], truncation=True, padding="max_length", is_split_into_words=True, return_token_type_ids=False)
         labels = []
         for i, label in enumerate(examples['ner_tags']):
@@ -44,27 +44,48 @@ def main():
     temperature = 2.0
 
     # Training loop
-    for batch in train_loader:
-        # Ensure no token_type_ids are passed to the model
-        batch = {k: v.to(student_model.device) for k, v in batch.items() if k != 'token_type_ids'}
-        with torch.no_grad():
-            teacher_logits = teacher_model(**batch).logits
+    epochs = 3
+    for epoch in range(epochs):
+        total_loss = 0
+        total_correct = 0
+        total_len = 0
 
-        student_output = student_model(**batch)
-        student_loss = student_output.loss
+        for itr, batch in enumerate(train_loader):
+            batch = {k: v.to(student_model.device) for k, v in batch.items() if k != 'token_type_ids'}
+            with torch.no_grad():
+                teacher_logits = teacher_model(**batch).logits
 
-        # Calculate distillation loss
-        soft_teacher_labels = torch.nn.functional.softmax(teacher_logits / temperature, dim=-1)
-        soft_student_logits = torch.nn.functional.log_softmax(student_output.logits / temperature, dim=-1)
-        distillation_loss = torch.nn.KLDivLoss(reduction='batchmean')(soft_student_logits, soft_teacher_labels)
+            student_output = student_model(**batch)
+            student_loss = student_output.loss
 
-        # Combine losses
-        loss = student_loss + 0.5 * distillation_loss
-        loss.backward()
-        optimizer.step()
-        optimizer.zero_grad()
+            # Calculate distillation loss
+            soft_teacher_labels = torch.nn.functional.softmax(teacher_logits / temperature, dim=-1)
+            soft_student_logits = torch.nn.functional.log_softmax(student_output.logits / temperature, dim=-1)
+            distillation_loss = torch.nn.KLDivLoss(reduction='batchmean')(soft_student_logits, soft_teacher_labels)
 
-    print("Training complete!")
+            # Combine losses
+            loss = student_loss + 0.5 * distillation_loss
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()
+
+            total_loss += loss.item()
+
+            # Convert logits to predicted labels
+            predictions = torch.argmax(soft_student_logits, dim=-1).flatten()
+            labels = batch['labels'].flatten()
+
+            # Filter out `-100` values from the labels and predictions
+            mask = labels != -100
+            labels = labels[mask]
+            predictions = predictions[mask]
+
+            total_correct += (predictions == labels).sum().item()
+            total_len += labels.size(0)
+
+            print(f'[Epoch {epoch+1}/{epochs}] Iteration {itr+1} -> Train Loss: {total_loss/(itr+1):.4f}, Accuracy: {total_correct/total_len:.3f}')
+
+        print(f'End of Epoch {epoch+1}/{epochs} -> Average Loss: {total_loss/(itr+1):.4f}, Accuracy: {total_correct/total_len:.3f}')
 
 if __name__ == "__main__":
     main()
