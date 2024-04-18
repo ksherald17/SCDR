@@ -18,7 +18,6 @@ def main():
     example_data = dataset["train"][0]
     writer.add_text("Sample Data", f"Tokens: {example_data['tokens']}\nTags: {example_data['ner_tags']}")
 
-
     # Function to tokenize and align labels for NER
     def tokenize_and_align_labels(examples):
         tokenized_inputs = tokenizer(examples['tokens'], truncation=True, padding="max_length", is_split_into_words=True, return_token_type_ids=False)
@@ -34,7 +33,7 @@ def main():
     def sample_dataset(dataset, sample_size=0.1):
         """ Randomly sample sample_size proportion of dataset for each split """
         sampled = {}
-        for split in dataset.keys():
+        for split in dataset:
             sampled_split = dataset[split].shuffle(seed=42).select(range(int(len(dataset[split]) * sample_size)))
             sampled[split] = sampled_split
         return sampled
