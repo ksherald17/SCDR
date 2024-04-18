@@ -1,8 +1,8 @@
 import torch
-from transformers import BertTokenizerFast, BertForTokenClassification, DistilBertForTokenClassification
-from transformers import AdamW, DataCollatorForTokenClassification
+from transformers import BertTokenizerFast, BertForTokenClassification, DistilBertForTokenClassification, AdamW
 from datasets import load_dataset
 from torch.utils.data import DataLoader
+from transformers.data.data_collator import DataCollatorForTokenClassification
 
 def main():
     # Load fast tokenizer and dataset
@@ -18,38 +18,31 @@ def main():
         labels = []
         for i, label in enumerate(examples['ner_tags']):
             word_ids = tokenized_inputs.word_ids(batch_index=i)
-            previous_word_idx = None
-            label_ids = []
-            for word_idx in word_ids:
-                if word_idx is None:
-                    label_ids.append(-100)  # label for special tokens
-                elif word_idx != previous_word_idx:
-                    label_ids.append(label[word_idx])  # label for the first token of a word
-                else:
-                    label_ids.append(-100)  # label for subsequent tokens of the same word
-                previous_word_idx = word_idx
+            label_ids = [-100 if word_id is None else label[word_id] for word_id in word_ids]
             labels.append(label_ids)
         tokenized_inputs["labels"] = labels
         return tokenized_inputs
 
     # Tokenize all data splits and remove unneeded columns
-    dataset = dataset.map(tokenize_and_align_labels, batched=True, remove_columns=["tokens", "pos_tags", "chunk_tags", "id"])
+    dataset = dataset.map(tokenize_and_align_labels, batched=True, remove_columns=["tokens", "pos_tags", "chunk_tags", "id", "ner_tags"])
 
-    # Load teacher model (BERT)
+    # Load teacher and student models
     teacher_model = BertForTokenClassification.from_pretrained("bert-base-uncased", num_labels=num_labels)
-    teacher_model.eval()  # Set the teacher model to evaluation mode
-
-    # Load student model (DistilBERT)
     student_model = DistilBertForTokenClassification.from_pretrained("distilbert-base-uncased", num_labels=num_labels)
+    teacher_model.eval()
+    student_model.train()
 
-    # Prepare for training
+    # Data collator that dynamically pads the inputs and labels
     data_collator = DataCollatorForTokenClassification(tokenizer)
+
+    # DataLoader setup
     train_loader = DataLoader(dataset['train'], batch_size=8, collate_fn=data_collator)
+
+    # Optimizer setup
     optimizer = AdamW(student_model.parameters(), lr=5e-5)
     temperature = 2.0
 
     # Training loop
-    student_model.train()
     for batch in train_loader:
         batch = {k: v.to(student_model.device) for k, v in batch.items()}
         with torch.no_grad():
