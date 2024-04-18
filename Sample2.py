@@ -31,7 +31,7 @@ def main():
 
     # Sampling a subset of the data for quicker iterations
     def sample_dataset(dataset, sample_size=0.1):
-        return dataset.shuffle(seed=42).select(range(int(len(dataset[split]) * sample_size)))
+        return dataset.shuffle(seed=42).select(range(int(len(dataset) * sample_size)))
 
     # Tokenize and prepare all data splits
     dataset = dataset.map(tokenize_and_align_labels, batched=True, remove_columns=["tokens", "pos_tags", "chunk_tags", "id", "ner_tags"])
