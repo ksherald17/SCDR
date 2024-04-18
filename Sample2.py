@@ -36,7 +36,7 @@ def main():
     sampling = 0.6
     train_dataset = sample_dataset(dataset["train"], sample_size=sampling) # Sample 10% of each split
     eval_dataset = sample_dataset(dataset["validation"], sample_size=sampling)
-    test_dataset = sample_dataset(dataset["test"], sample_size=samplinng)
+    test_dataset = sample_dataset(dataset["test"], sample_size=sampling)
 
     # Load teacher and student models
     teacher_model = BertForTokenClassification.from_pretrained("bert-base-uncased", num_labels=num_labels)
