@@ -18,17 +18,6 @@ def main():
     example_data = dataset["train"][0]
     writer.add_text("Sample Data", f"Tokens: {example_data['tokens']}\nTags: {example_data['ner_tags']}")
 
-        # Sampling a subset of the data for quicker iterations
-    def sample_dataset(dataset, sample_size=0.1):
-        """ Randomly sample sample_size proportion of dataset for each split """
-        sampled = {}
-        for split in dataset.keys():
-            sampled_split = dataset[split].shuffle(seed=42).select(range(int(len(dataset[split]) * sample_size)))
-            sampled[split] = sampled_split
-        return sampled
-
-    dataset = sample_dataset(dataset, sample_size=0.1)  # Sample 10% of each split
-
 
     # Function to tokenize and align labels for NER
     def tokenize_and_align_labels(examples):
@@ -41,12 +30,23 @@ def main():
         tokenized_inputs["labels"] = labels
         return tokenized_inputs
 
+    # Sampling a subset of the data for quicker iterations
+    def sample_dataset(dataset, sample_size=0.1):
+        """ Randomly sample sample_size proportion of dataset for each split """
+        sampled = {}
+        for split in dataset.keys():
+            sampled_split = dataset[split].shuffle(seed=42).select(range(int(len(dataset[split]) * sample_size)))
+            sampled[split] = sampled_split
+        return sampled
+
     # Tokenize and prepare all data splits
     dataset = dataset.map(tokenize_and_align_labels, batched=True, remove_columns=["tokens", "pos_tags", "chunk_tags", "id", "ner_tags"])
-    train_dataset = dataset["train"]
-    eval_dataset = dataset["validation"]
-    test_dataset = dataset["test"]
-
+    # train_dataset = dataset["train"]
+    # eval_dataset = dataset["validation"]
+    # test_dataset = dataset["test"]
+    train_dataset = sample_dataset(dataset["train"], sample_size=0.1) # Sample 10% of each split
+    eval_dataset = sample_dataset(dataset["validation"], sample_size=0.1)
+    test_dataset = sample_dataset(dataset["test"], sample_size=0.1)
 
     # Load teacher and student models
     teacher_model = BertForTokenClassification.from_pretrained("bert-base-uncased", num_labels=num_labels)
