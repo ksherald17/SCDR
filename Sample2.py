@@ -1,8 +1,8 @@
 import torch
-from transformers import BertTokenizerFast, BertForTokenClassification, DistilBertForTokenClassification, AdamW
+from transformers import BertTokenizerFast, BertForTokenClassification, DistilBertForTokenClassification
+from transformers import AdamW, DataCollatorForTokenClassification
 from datasets import load_dataset
 from torch.utils.data import DataLoader
-from transformers.data.data_collator import DataCollatorForTokenClassification
 
 def main():
     # Load fast tokenizer and dataset
@@ -14,7 +14,8 @@ def main():
 
     # Function to tokenize and align labels for NER
     def tokenize_and_align_labels(examples):
-        tokenized_inputs = tokenizer(examples['tokens'], truncation=True, padding="max_length", is_split_into_words=True)
+        # Note the removal of token_type_ids
+        tokenized_inputs = tokenizer(examples['tokens'], truncation=True, padding="max_length", is_split_into_words=True, return_token_type_ids=False)
         labels = []
         for i, label in enumerate(examples['ner_tags']):
             word_ids = tokenized_inputs.word_ids(batch_index=i)
@@ -44,7 +45,8 @@ def main():
 
     # Training loop
     for batch in train_loader:
-        batch = {k: v.to(student_model.device) for k, v in batch.items()}
+        # Ensure no token_type_ids are passed to the model
+        batch = {k: v.to(student_model.device) for k, v in batch.items() if k != 'token_type_ids'}
         with torch.no_grad():
             teacher_logits = teacher_model(**batch).logits
 
