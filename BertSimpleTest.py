@@ -14,7 +14,7 @@ train_data.dropna(inplace=True)
 test_data.dropna(inplace=True)
 
 # 데이터 샘플링 비율 
-sampling_rate=0.4
+sampling_rate=0.6
 train_sampled = train_data.sample(frac=sampling_rate, random_state=999)
 test_sampled = test_data.sample(frac=sampling_rate, random_state=999)
 
@@ -40,7 +40,7 @@ model.to(device)
 optimizer = Adam(model.parameters(), lr=1e-5) # SCDR에 제시된 learning rate
 itr = 1
 p_itr = 500
-epochs = 1
+epochs = 3
 total_loss = 0
 total_len = 0
 total_correct = 0
