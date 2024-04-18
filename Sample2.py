@@ -33,7 +33,7 @@ def main():
     dataset = dataset.map(tokenize_and_align_labels, batched=True, remove_columns=["tokens", "pos_tags", "chunk_tags", "id"])
 
     # Calculate the number of unique NER labels
-    num_labels = len(dataset['train'].features['labels'].feature.names)
+    num_labels = dataset['train'].features['ner_tags'].feature.num_classes
 
     # Load teacher model (BERT)
     teacher_model = BertForTokenClassification.from_pretrained("bert-base-uncased", num_labels=num_labels)
