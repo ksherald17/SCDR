@@ -15,9 +15,6 @@ def main():
     dataset = load_dataset("conll2003")
     num_labels = dataset['train'].features['ner_tags'].feature.num_classes
 
-    example_data = dataset["train"][0]
-    writer.add_text("Sample Data", f"Tokens: {example_data['tokens']}\nTags: {example_data['ner_tags']}")
-
     # Function to tokenize and align labels for NER
     def tokenize_and_align_labels(examples):
         tokenized_inputs = tokenizer(examples['tokens'], truncation=True, padding="max_length", is_split_into_words=True, return_token_type_ids=False)
