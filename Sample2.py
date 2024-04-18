@@ -32,6 +32,9 @@ def main():
     eval_dataset = dataset["validation"]
     test_dataset = dataset["test"]
 
+    sample_data = train_dataset[0]
+    writer.add_text("Sample Data", f"Tokens: {sample_data['tokens']}\nLabels: {sample_data['labels']}")
+
     # Load teacher and student models
     teacher_model = BertForTokenClassification.from_pretrained("bert-base-uncased", num_labels=num_labels)
     student_model = DistilBertForTokenClassification.from_pretrained("distilbert-base-uncased", num_labels=num_labels)
@@ -50,10 +53,11 @@ def main():
     best_accuracy = 0
 
     # Training loop with evaluation and checkpointing
-    epochs = 3
+    epochs = 1
     for epoch in range(epochs):
         total_train_loss = 0
-        total_eval_loss = 0
+        correct_predictions = 0
+        total_predictions = 0
         for i, batch in enumerate(train_loader):
             batch = {k: v.to(student_model.device) for k, v in batch.items() if k != 'token_type_ids'}
             optimizer.zero_grad()
@@ -73,12 +77,24 @@ def main():
             loss.backward()
             optimizer.step()
 
+            # Calculate predictions for accuracy
+            logits = student_output.logits.detach()
+            predictions = torch.argmax(logits, dim=-1)
+            labels = batch['labels']
+            mask = labels != -100 # Compute accuracy, considering -100 labels that should be ignored
+            correct_predictions += (predictions[mask] == labels[mask]).sum().item()
+            total_predictions += mask.sum().item()
+
             total_train_loss += loss.item()
             writer.add_scalar('Training Loss', loss.item(), epoch * len(train_loader) + i)
 
-            # Log progress every 10 batches
-            if i % 10 == 0:
-                print(f'Epoch {epoch+1}/{epochs}, Batch {i+1}/{len(train_loader)}, Train Loss: {loss.item():.4f}')
+            # Logging
+            if i % 5 == 0:
+                current_accuracy = correct_predictions / total_predictions if total_predictions > 0 else 0
+                print(f'Epoch {epoch+1}/{epochs}, Batch {i+1}/{len(train_loader)}, Train Loss: {loss.item():.4f}, Accuracy: {current_accuracy:.4f}')
+                # Optionally, reset for more fine-grained batch accuracy rather than cumulative
+                correct_predictions = 0
+                total_predictions = 0
 
         # Validation phase
         student_model.eval()
