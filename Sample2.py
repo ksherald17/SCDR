@@ -35,12 +35,11 @@ def main():
 
     # Tokenize and prepare all data splits
     dataset = dataset.map(tokenize_and_align_labels, batched=True, remove_columns=["tokens", "pos_tags", "chunk_tags", "id", "ner_tags"])
-    # train_dataset = dataset["train"]
-    # eval_dataset = dataset["validation"]
-    # test_dataset = dataset["test"]
-    train_dataset = sample_dataset(dataset["train"], sample_size=0.1) # Sample 10% of each split
-    eval_dataset = sample_dataset(dataset["validation"], sample_size=0.1)
-    test_dataset = sample_dataset(dataset["test"], sample_size=0.1)
+
+    sampling = 0.6
+    train_dataset = sample_dataset(dataset["train"], sample_size=sampling) # Sample 10% of each split
+    eval_dataset = sample_dataset(dataset["validation"], sample_size=sampling)
+    test_dataset = sample_dataset(dataset["test"], sample_size=samplinng)
 
     # Load teacher and student models
     teacher_model = BertForTokenClassification.from_pretrained("bert-base-uncased", num_labels=num_labels)
@@ -60,7 +59,7 @@ def main():
     best_accuracy = 0
 
     # Training loop with evaluation and checkpointing
-    epochs = 1
+    epochs = 3
     for epoch in range(epochs):
         total_train_loss = 0
         correct_predictions = 0
