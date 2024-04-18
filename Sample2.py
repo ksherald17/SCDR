@@ -3,14 +3,16 @@ from transformers import BertTokenizerFast, BertForTokenClassification, DistilBe
 from transformers import AdamW, DataCollatorForTokenClassification
 from datasets import load_dataset
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 from sklearn.metrics import accuracy_score
 
 def main():
-    # Load fast tokenizer and dataset
+    # Initialize TensorBoard
+    writer = SummaryWriter(log_dir='./tensorboard_logs')
+
+    # Load tokenizer and dataset
     tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
     dataset = load_dataset("conll2003")
-
-    # Extract the number of unique NER labels
     num_labels = dataset['train'].features['ner_tags'].feature.num_classes
 
     # Function to tokenize and align labels for NER
@@ -24,8 +26,11 @@ def main():
         tokenized_inputs["labels"] = labels
         return tokenized_inputs
 
-    # Tokenize all data splits and remove unneeded columns
+    # Tokenize and prepare all data splits
     dataset = dataset.map(tokenize_and_align_labels, batched=True, remove_columns=["tokens", "pos_tags", "chunk_tags", "id", "ner_tags"])
+    train_dataset = dataset["train"]
+    eval_dataset = dataset["validation"]
+    test_dataset = dataset["test"]
 
     # Load teacher and student models
     teacher_model = BertForTokenClassification.from_pretrained("bert-base-uncased", num_labels=num_labels)
@@ -33,25 +38,25 @@ def main():
     teacher_model.eval()
     student_model.train()
 
-    # Data collator that dynamically pads the inputs and labels
+    # Data collator and DataLoader setup
     data_collator = DataCollatorForTokenClassification(tokenizer)
+    train_loader = DataLoader(train_dataset, batch_size=8, collate_fn=data_collator)
+    eval_loader = DataLoader(eval_dataset, batch_size=8, collate_fn=data_collator)
+    test_loader = DataLoader(test_dataset, batch_size=8, collate_fn=data_collator)
 
-    # DataLoader setup
-    train_loader = DataLoader(dataset['train'], batch_size=8, collate_fn=data_collator)
-
-    # Optimizer setup
+    # Optimizer
     optimizer = AdamW(student_model.parameters(), lr=5e-5)
     temperature = 2.0
+    best_accuracy = 0
 
-    # Training loop
+    # Training loop with evaluation and checkpointing
     epochs = 3
     for epoch in range(epochs):
-        total_loss = 0
-        total_correct = 0
-        total_len = 0
-
-        for itr, batch in enumerate(train_loader):
+        total_train_loss = 0
+        total_eval_loss = 0
+        for i, batch in enumerate(train_loader):
             batch = {k: v.to(student_model.device) for k, v in batch.items() if k != 'token_type_ids'}
+            optimizer.zero_grad()
             with torch.no_grad():
                 teacher_logits = teacher_model(**batch).logits
 
@@ -67,25 +72,54 @@ def main():
             loss = student_loss + 0.5 * distillation_loss
             loss.backward()
             optimizer.step()
-            optimizer.zero_grad()
 
-            total_loss += loss.item()
+            total_train_loss += loss.item()
+            writer.add_scalar('Training Loss', loss.item(), epoch * len(train_loader) + i)
 
-            # Convert logits to predicted labels
-            predictions = torch.argmax(soft_student_logits, dim=-1).flatten()
-            labels = batch['labels'].flatten()
+            # Log progress every 10 batches
+            if i % 10 == 0:
+                print(f'Epoch {epoch+1}/{epochs}, Batch {i+1}/{len(train_loader)}, Train Loss: {loss.item():.4f}')
 
-            # Filter out `-100` values from the labels and predictions
+        # Validation phase
+        student_model.eval()
+        eval_accuracy, eval_loss = evaluate_model(student_model, eval_loader, device=student_model.device)
+        writer.add_scalar('Validation Loss', eval_loss, epoch)
+        writer.add_scalar('Validation Accuracy', eval_accuracy, epoch)
+        print(f'Epoch {epoch+1}/{epochs}, Validation Loss: {eval_loss:.4f}, Accuracy: {eval_accuracy:.3f}')
+
+        # Checkpointing based on validation accuracy
+        if eval_accuracy > best_accuracy:
+            best_accuracy = eval_accuracy
+            torch.save(student_model.state_dict(), 'best_student_model.pt')
+            print(f"Checkpoint saved: Improved validation accuracy to {best_accuracy:.3f}")
+
+    # Evaluate on test dataset
+    student_model.load_state_dict(torch.load('best_student_model.pt'))
+    test_accuracy, test_loss = evaluate_model(student_model, test_loader, device=student_model.device)
+    print(f'Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.3f}')
+
+def evaluate_model(model, dataloader, device):
+    model.eval()
+    total_eval_loss = 0
+    total_correct = 0
+    total_examples = 0
+    for batch in dataloader:
+        batch = {k: v.to(device) for k, v in batch.items()}
+        with torch.no_grad():
+            output = model(**batch)
+            loss = output.loss
+            logits = output.logits
+            predictions = torch.argmax(logits, dim=-1)
+            labels = batch['labels']
             mask = labels != -100
             labels = labels[mask]
             predictions = predictions[mask]
-
             total_correct += (predictions == labels).sum().item()
-            total_len += labels.size(0)
+            total_examples += labels.size(0)
+            total_eval_loss += loss.item()
 
-            print(f'[Epoch {epoch+1}/{epochs}] Iteration {itr+1} -> Train Loss: {total_loss/(itr+1):.4f}, Accuracy: {total_correct/total_len:.3f}')
-
-        print(f'End of Epoch {epoch+1}/{epochs} -> Average Loss: {total_loss/(itr+1):.4f}, Accuracy: {total_correct/total_len:.3f}')
+    accuracy = total_correct / total_examples if total_examples > 0 else 0
+    return accuracy, total_eval_loss / len(dataloader)
 
 if __name__ == "__main__":
     main()
