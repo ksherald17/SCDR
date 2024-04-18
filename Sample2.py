@@ -29,15 +29,18 @@ def main():
         tokenized_inputs["labels"] = labels
         return tokenized_inputs
 
-    # Tokenize all data splits
-    dataset = dataset.map(tokenize_and_align_labels, batched=True, remove_columns=dataset["train"].column_names)
+    # Tokenize all data splits and remove unneeded columns
+    dataset = dataset.map(tokenize_and_align_labels, batched=True, remove_columns=["tokens", "pos_tags", "chunk_tags", "id"])
+
+    # Calculate the number of unique NER labels
+    num_labels = len(dataset['train'].features['labels'].feature.names)
 
     # Load teacher model (BERT)
-    teacher_model = BertForTokenClassification.from_pretrained("bert-base-uncased", num_labels=len(dataset['train'].features['labels'].feature.names))
+    teacher_model = BertForTokenClassification.from_pretrained("bert-base-uncased", num_labels=num_labels)
     teacher_model.eval()  # Set the teacher model to evaluation mode
 
     # Load student model (DistilBERT)
-    student_model = DistilBertForTokenClassification.from_pretrained("distilbert-base-uncased", num_labels=len(dataset['train'].features['labels'].feature.names))
+    student_model = DistilBertForTokenClassification.from_pretrained("distilbert-base-uncased", num_labels=num_labels)
 
     # Prepare for training
     data_collator = DataCollatorForTokenClassification(tokenizer)
