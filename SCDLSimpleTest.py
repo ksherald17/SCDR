@@ -9,6 +9,8 @@ import logging
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+torch.cuda.empty_cache()
+
 # Constants
 ALPHA = 0.99  # EMA coefficient
 NUM_EPOCHS = 3  # Number of training epochs
