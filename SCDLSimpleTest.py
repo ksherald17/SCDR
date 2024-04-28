@@ -108,7 +108,7 @@ def evaluate_model(model, dataloader, device):
 for epoch in range(NUM_EPOCHS):
     student1.train()
     student2.train()
-    for i, batch in train_loader:
+    for i, batch in enumerate(train_loader): 
         # Forward pass
         batch = {k: v.to(device) for k, v in batch.items()}
         labels = batch['labels']
