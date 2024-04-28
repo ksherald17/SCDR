@@ -18,6 +18,7 @@ torch.cuda.empty_cache()
 ALPHA = 0.99  # EMA coefficient
 NUM_EPOCHS = 3  # Number of training epochs
 BATCH_SIZE = 8  # Batch size for training
+EMA_UPDATE_PERIOD = 10 # Apply EMA updates every 10 batchs
 
 # Load and preprocess the dataset
 tokenizer = BertTokenizerFast.from_pretrained('bert-base-cased')
@@ -107,7 +108,7 @@ def evaluate_model(model, dataloader, device):
 for epoch in range(NUM_EPOCHS):
     student1.train()
     student2.train()
-    for batch in train_loader:
+    for i, batch in train_loader:
         # Forward pass
         batch = {k: v.to(device) for k, v in batch.items()}
         labels = batch['labels']
@@ -137,14 +138,14 @@ for epoch in range(NUM_EPOCHS):
         optimizer_s2.step()
 
         # Apply EMA to teacher models
-        apply_ema(teacher1, student1)
-        apply_ema(teacher2, student2)
+        if (i + 1) % EMA_UPDATE_PERIOD == 0:
+            apply_ema(teacher1, student1)
+            apply_ema(teacher2, student2)
 
     # Validation step
     eval_st1_accuracy, eval_st1_loss = evaluate_model(student1, validation_loader)
     eval_st2_accuracy, eval_st2_loss = evaluate_model(student2, validation_loader) 
     print(f'Epoch {epoch+1}/{NUM_EPOCHS}, St1 [Validation Loss: {eval_st1_loss:.4f}, Accuracy: {eval_st1_accuracy:.3f}] | St2 [Validation Loss: {eval_st2_loss:.4f}, Accuracy: {eval_st2_accuracy:.3f}]')
-
 
 # Save the models
 torch.save(student1.state_dict(), "student1_model.pt")
