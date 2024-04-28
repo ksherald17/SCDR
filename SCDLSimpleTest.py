@@ -81,18 +81,28 @@ def apply_ema(teacher, student, alpha=ALPHA):
                 param.data.lerp_(student_params[name].data, 1 - alpha)
 
 # Function to evaluate model
-def evaluate_model(model, data_loader):
+def evaluate_model(model, dataloader, device):
     model.eval()
-    total_loss = 0
-    with torch.no_grad():
-        for batch in data_loader:
-            batch = {k: v.to(device) for k, v in batch.items()}
-            outputs = model(**batch)
+    total_eval_loss = 0
+    total_correct = 0
+    total_examples = 0
+    for batch in dataloader:
+        batch = {k: v.to(device) for k, v in batch.items()}
+        with torch.no_grad():
+            output = model(**batch)
+            loss = output.loss
+            logits = output.logits
+            predictions = torch.argmax(logits, dim=-1)
             labels = batch['labels']
-            loss = cross_entropy(outputs.logits.view(-1, NUM_LABELS), labels.view(-1))
-            total_loss += loss.item()
-    return total_loss / len(data_loader)
+            mask = labels != -100
+            labels = labels[mask]
+            predictions = predictions[mask]
+            total_correct += (predictions == labels).sum().item()
+            total_examples += labels.size(0)
+            total_eval_loss += loss.item()
 
+    accuracy = total_correct / total_examples if total_examples > 0 else 0
+    return accuracy, total_eval_loss / len(dataloader)
 # Training loop
 for epoch in range(NUM_EPOCHS):
     student1.train()
@@ -131,11 +141,13 @@ for epoch in range(NUM_EPOCHS):
         apply_ema(teacher2, student2)
 
     # Validation step
-    val_loss = evaluate_model(student1, validation_loader)
-    logging.info(f'Epoch {epoch+1}, Validation Loss: {val_loss:.4f}')
+    eval_accuracy, eval_loss = evaluate_model(student1, validation_loader)
+    print(f'Epoch {epoch+1}/{NUM_EPOCHS}, Validation Loss: {eval_loss:.4f}, Accuracy: {eval_accuracy:.3f}')
+
 
 # Save the models
 torch.save(student1.state_dict(), "student1_model.pt")
 torch.save(student2.state_dict(), "student2_model.pt")
 torch.save(teacher1.state_dict(), "teacher1_model.pt")
 torch.save(teacher2.state_dict(), "teacher2_model.pt")
+
