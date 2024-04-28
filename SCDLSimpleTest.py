@@ -143,8 +143,8 @@ for epoch in range(NUM_EPOCHS):
             apply_ema(teacher2, student2)
 
     # Validation step
-    eval_st1_accuracy, eval_st1_loss = evaluate_model(student1, validation_loader)
-    eval_st2_accuracy, eval_st2_loss = evaluate_model(student2, validation_loader) 
+    eval_st1_accuracy, eval_st1_loss = evaluate_model(student1, validation_loader, device)
+    eval_st2_accuracy, eval_st2_loss = evaluate_model(student2, validation_loader, device) 
     print(f'Epoch {epoch+1}/{NUM_EPOCHS}, St1 [Validation Loss: {eval_st1_loss:.4f}, Accuracy: {eval_st1_accuracy:.3f}] | St2 [Validation Loss: {eval_st2_loss:.4f}, Accuracy: {eval_st2_accuracy:.3f}]')
 
 # Save the models
