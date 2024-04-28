@@ -74,8 +74,11 @@ kl_div_loss = KLDivLoss(reduction='batchmean')
 # Function to apply EMA
 def apply_ema(teacher, student, alpha=ALPHA):
     with torch.no_grad():
-        for teacher_param, student_param in zip(teacher.parameters(), student.parameters()):
-            teacher_param.data.lerp_(student_param.data, 1 - alpha)
+        teacher_params = dict(teacher.named_parameters())
+        student_params = dict(student.named_parameters())
+        for name, param in teacher_params.items():
+            if name in student_params:
+                param.data.lerp_(student_params[name].data, 1 - alpha)
 
 # Function to evaluate model
 def evaluate_model(model, data_loader):
