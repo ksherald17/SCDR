@@ -49,7 +49,7 @@ teacher2 = BertForTokenClassification.from_pretrained('bert-base-cased', num_lab
 student1 = DistilBertForTokenClassification.from_pretrained('distilbert-base-cased', num_labels=NUM_LABELS)
 student2 = DistilBertForTokenClassification.from_pretrained('distilbert-base-cased', num_labels=NUM_LABELS)
 
-sampling = 0.01
+sampling = 0.8
 train_dataset = sample_dataset(tokenized_datasets["train"], sample_size=sampling) # Sample 10% of each split
 eval_dataset = sample_dataset(tokenized_datasets["validation"], sample_size=sampling)
 test_dataset = sample_dataset(tokenized_datasets["test"], sample_size=sampling)
@@ -104,6 +104,7 @@ def evaluate_model(model, dataloader, device):
 
     accuracy = total_correct / total_examples if total_examples > 0 else 0
     return accuracy, total_eval_loss / len(dataloader)
+
 # Training loop
 for epoch in range(NUM_EPOCHS):
     student1.train()
