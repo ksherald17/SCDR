@@ -125,6 +125,11 @@ for epoch in range(NUM_EPOCHS):
     for i, batch in enumerate(train_loader): 
         batch = {k: v.to(device) for k, v in batch.items()}
         labels = batch['labels']
+        
+        correct_predictions1 = 0
+        total_predictions1 = 0
+        correct_predictions2 = 0
+        total_predictions2 = 0
 
         # Teacher predictions
         with torch.no_grad():
