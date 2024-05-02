@@ -98,6 +98,26 @@ def generate_confidence_mask(soft_labels, threshold=0.9):
     confidence_mask = (max_probs >= threshold).float()  # Compare to threshold and convert to float for masking
     return confidence_mask
 
+# Function to evaluate model
+def evaluate_model(model, dataloader, device):
+    model.eval()
+    total_eval_loss = 0
+    total_correct = 0
+    total_examples = 0
+    for batch in dataloader:
+        batch = {k: v.to(device) for k, v in batch.items()}
+        with torch.no_grad():
+            output = model(**batch)
+            logits = output.logits
+            loss = cross_entropy(logits.view(-1, NUM_LABELS), batch['labels'].view(-1))
+            total_eval_loss += loss.item()
+            predictions = torch.argmax(logits, dim=-1)
+            correct_labels = batch['labels'] != -100
+            total_correct += (predictions == batch['labels']).sum().item()
+            total_examples += correct_labels.sum().item()
+    accuracy = total_correct / total_examples if total_examples > 0 else 0
+    return total_eval_loss / len(dataloader), accuracy
+
 # Training loop
 for epoch in range(NUM_EPOCHS):
     student1.train()
@@ -131,6 +151,23 @@ for epoch in range(NUM_EPOCHS):
         if (i + 1) % EMA_UPDATE_PERIOD == 0:
             apply_ema(teacher1, student1)
             apply_ema(teacher2, student2)
+    
+        predictions1 = torch.argmax(student1(**batch).logits, dim=-1)
+        correct_predictions1 += (predictions1 == batch['labels']).sum().item()
+        total_predictions1 += len(batch['labels'])
+
+        predictions2 = torch.argmax(student2(**batch).logits, dim=-1)
+        correct_predictions2 += (predictions2 == batch['labels']).sum().item()
+        total_predictions2 += len(batch['labels'])
+
+        # Logging
+        if i % 5 == 0:
+            print(f'Epoch {epoch+1}/{NUM_EPOCHS}, Batch {i+1}/{len(train_loader)}, Train1 Loss: {student1_loss.item():.4f}, Train2 Loss: {student2_loss.item():.4f}, Accuracy1: {correct_predictions1/total_predictions1:.4f}, Accuracy1: {correct_predictions2/total_predictions2:.4f}')
+            # Optionally, reset for more fine-grained batch accuracy rather than cumulative
+            correct_predictions1 = 0
+            total_predictions1 = 0
+            correct_predictions2 = 0
+            total_predictions2 = 0
 
     # Validation step
     eval_st1_loss, eval_st1_accuracy = evaluate_model(student1, validation_loader, device)
@@ -143,22 +180,3 @@ torch.save(student2.state_dict(), "student2_model.pt")
 torch.save(teacher1.state_dict(), "teacher1_model.pt")
 torch.save(teacher2.state_dict(), "teacher2_model.pt")
 
-# Function to evaluate model
-def evaluate_model(model, dataloader, device):
-    model.eval()
-    total_eval_loss = 0
-    total_correct = 0
-    total_examples = 0
-    for batch in dataloader:
-        batch = {k: v.to(device) for k, v in batch.items()}
-        with torch.no_grad():
-            output = model(**batch)
-            logits = output.logits
-            loss = cross_entropy(logits.view(-1, NUM_LABELS), batch['labels'].view(-1))
-            total_eval_loss += loss.item()
-            predictions = torch.argmax(logits, dim=-1)
-            correct_labels = batch['labels'] != -100
-            total_correct += (predictions == batch['labels']).sum().item()
-            total_examples += correct_labels.sum().item()
-    accuracy = total_correct / total_examples if total_examples > 0 else 0
-    return total_eval_loss / len(dataloader), accuracy
