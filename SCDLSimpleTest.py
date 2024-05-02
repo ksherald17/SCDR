@@ -159,11 +159,11 @@ for epoch in range(NUM_EPOCHS):
     
         predictions1 = torch.argmax(student1(**batch).logits, dim=-1)
         correct_predictions1 += (predictions1 == batch['labels']).sum().item()
-        total_predictions1 += len(batch['labels'])
+        total_predictions1 += batch['labels'].numel()
 
         predictions2 = torch.argmax(student2(**batch).logits, dim=-1)
         correct_predictions2 += (predictions2 == batch['labels']).sum().item()
-        total_predictions2 += len(batch['labels'])
+        total_predictions2 += batch['labels'].numel()
 
         # Logging
         if i % 5 == 0:
