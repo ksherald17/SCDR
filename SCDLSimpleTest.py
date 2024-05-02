@@ -167,12 +167,15 @@ for epoch in range(NUM_EPOCHS):
 
         # Logging
         if i % 5 == 0:
-            print(f'Epoch {epoch+1}/{NUM_EPOCHS}, Batch {i+1}/{len(train_loader)}, Train1 Loss: {student1_loss.item():.4f}, Train2 Loss: {student2_loss.item():.4f}, Accuracy1: {correct_predictions1/total_predictions1:.4f}, Accuracy1: {correct_predictions2/total_predictions2:.4f}')
+            accuracy1 = correct_predictions1 / total_predictions1
+            accuracy2 = correct_predictions2 / total_predictions2
+            print(f'Epoch {epoch+1}/{NUM_EPOCHS}, Batch {i+1}/{len(train_loader)}, Train1 Loss: {student1_loss.item():.4f}, Train2 Loss: {student2_loss.item():.4f}, Accuracy1: {accuracy1:.4f}, Accuracy2: {accuracy2:.4f}')
             # Optionally, reset for more fine-grained batch accuracy rather than cumulative
             correct_predictions1 = 0
             total_predictions1 = 0
             correct_predictions2 = 0
             total_predictions2 = 0
+
 
     # Validation step
     eval_st1_loss, eval_st1_accuracy = evaluate_model(student1, validation_loader, device)
