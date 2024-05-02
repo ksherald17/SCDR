@@ -80,8 +80,10 @@ def apply_ema(teacher, student, alpha=ALPHA):
                 if s_param.shape != t_param.shape:
                     # Resize student parameters to match the shape of teacher parameters
                     s_param = s_param.view(*t_param.shape)
-                # Apply EMA update
-                t_param.mul_(alpha).add_(s_param, alpha=1 - alpha)
+                # Create new tensors for EMA update
+                ema_param = alpha * t_param + (1 - alpha) * s_param
+                # Update teacher parameters
+                t_param.copy_(ema_param)
 
 def soft_label_cross_entropy(preds, soft_labels, true_labels, confidence_mask, temperature=2.0):
     # Ensure true labels are class indices for cross_entropy
