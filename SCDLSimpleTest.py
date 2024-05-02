@@ -184,7 +184,7 @@ for epoch in range(NUM_EPOCHS):
 
         # Logging
         if i % 50 == 0:
-            logging.info(f'Epoch {epoch+1}/{NUM_EPOCHS}, Batch {i+1}/{len(train_loader)}, Train1 Loss: {student1_loss.item():.4f}, Train2 Loss: {student2_loss.item():.4f}, Accuracy1: {correct_predictions1/total_predictions1:.4f}, Accuracy2: {correct_predictions2/total_predictions2:.4f}')
+            logging.info(f'Epoch {epoch+1}/{NUM_EPOCHS}, Batch {i+1}/{len(train_loader)}, Train1 Loss: {student1_loss.item():.4f}, Train2 Loss: {student2_loss.item():.4f}, Accuracy1: {accuracy1:.4f}, Accuracy2: {accuracy2:.4f}')
         writer.add_scalar('Loss/Student1', student1_loss.item(), epoch * len(train_loader) + i)
         writer.add_scalar('Loss/Student2', student2_loss.item(), epoch * len(train_loader) + i)
         writer.add_scalar('Accuracy/Student1', correct_predictions1/total_predictions1, epoch * len(train_loader) + i)
