@@ -120,6 +120,15 @@ def evaluate_model(model, dataloader, device):
     accuracy = total_correct / total_examples if total_examples > 0 else 0
     return total_eval_loss / len(dataloader), accuracy
 
+# Function to calculate accuracy
+def calculate_accuracy(predictions, labels):
+    # Compute accuracy, considering -100 labels that should be ignored
+    mask = labels != -100
+    correct_predictions = (predictions[mask] == labels[mask]).sum().item()
+    total_predictions = mask.sum().item()
+    accuracy = correct_predictions / total_predictions if total_predictions > 0 else 0
+    return accuracy
+
 # Training loop
 best_val_accuracy = 0.0
 early_stopping_rounds = 5
@@ -168,20 +177,18 @@ for epoch in range(NUM_EPOCHS):
             apply_ema(teacher2, student2)
     
         predictions1 = torch.argmax(student1(**batch).logits, dim=-1)
-        correct_predictions1 += (predictions1 == batch['labels']).sum().item()
-        total_predictions1 += batch['labels'].numel()
+        accuracy1 = calculate_accuracy(predictions1, batch['labels'])
 
         predictions2 = torch.argmax(student2(**batch).logits, dim=-1)
-        correct_predictions2 += (predictions2 == batch['labels']).sum().item()
-        total_predictions2 += batch['labels'].numel()
+        accuracy2 = calculate_accuracy(predictions2, batch['labels'])
 
         # Logging
-        if i % 5 == 0:
+        if i % 50 == 0:
             logging.info(f'Epoch {epoch+1}/{NUM_EPOCHS}, Batch {i+1}/{len(train_loader)}, Train1 Loss: {student1_loss.item():.4f}, Train2 Loss: {student2_loss.item():.4f}, Accuracy1: {correct_predictions1/total_predictions1:.4f}, Accuracy2: {correct_predictions2/total_predictions2:.4f}')
-            writer.add_scalar('Loss/Student1', student1_loss.item(), epoch * len(train_loader) + i)
-            writer.add_scalar('Loss/Student2', student2_loss.item(), epoch * len(train_loader) + i)
-            writer.add_scalar('Accuracy/Student1', correct_predictions1/total_predictions1, epoch * len(train_loader) + i)
-            writer.add_scalar('Accuracy/Student2', correct_predictions2/total_predictions2, epoch * len(train_loader) + i)
+        writer.add_scalar('Loss/Student1', student1_loss.item(), epoch * len(train_loader) + i)
+        writer.add_scalar('Loss/Student2', student2_loss.item(), epoch * len(train_loader) + i)
+        writer.add_scalar('Accuracy/Student1', correct_predictions1/total_predictions1, epoch * len(train_loader) + i)
+        writer.add_scalar('Accuracy/Student2', correct_predictions2/total_predictions2, epoch * len(train_loader) + i)
             
     # Validation step
     eval_st1_loss, eval_st1_accuracy = evaluate_model(student1, validation_loader, device)
