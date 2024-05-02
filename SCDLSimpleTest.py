@@ -25,12 +25,13 @@ dataset = load_dataset("conll2003")
 NUM_LABELS = dataset['train'].features['ner_tags'].feature.num_classes
 
 def tokenize_and_align_labels(examples):
-    tokenized_inputs = tokenizer(examples["tokens"], truncation=True, padding="max_length", is_split_into_words=True)
-    tokenized_inputs["labels"] = [
-        [-100 if word_id is None else label[word_id] for word_id in tokenized_inputs.word_ids(batch_index=i)]
-        for i, label in enumerate(examples["ner_tags"])
-    ]
-    tokenized_inputs["labels"] = torch.tensor(tokenized_inputs["labels"])
+    tokenized_inputs = tokenizer(examples['tokens'], truncation=True, padding="max_length", is_split_into_words=True, return_token_type_ids=False)
+    labels = []
+    for i, label in enumerate(examples['ner_tags']):
+        word_ids = tokenized_inputs.word_ids(batch_index=i)
+        label_ids = [-100 if word_id is None else label[word_id] for word_id in word_ids]
+        labels.append(label_ids)
+    tokenized_inputs["labels"] = labels
     return tokenized_inputs
 
 tokenized_datasets = dataset.map(tokenize_and_align_labels, batched=True)
