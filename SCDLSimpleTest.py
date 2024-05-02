@@ -71,7 +71,7 @@ def apply_ema(teacher, student, alpha=ALPHA):
 def soft_label_cross_entropy(preds, soft_labels, true_labels, confidence_mask):
     # Ensure true labels are class indices for cross_entropy
     if true_labels.dim() > 1:
-        true_labels = true_labels.squeeze()  # Adjust as necessary based on your specific case
+        true_labels = torch.argmax(true_labels, dim=-1)  # Convert one-hot encoded labels to class indices
 
     # Calculate the soft label loss using KL divergence
     soft_label_loss = F.kl_div(F.log_softmax(preds, dim=-1), soft_labels, reduction='none').sum(dim=-1)
@@ -82,6 +82,7 @@ def soft_label_cross_entropy(preds, soft_labels, true_labels, confidence_mask):
     # Apply confidence mask to the soft label loss component
     combined_loss = confidence_mask * soft_label_loss + (1 - confidence_mask) * true_label_loss
     return combined_loss.mean()
+
 
 
 #     Generate a confidence mask for tokens where the maximum predicted probability 
