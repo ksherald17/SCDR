@@ -48,7 +48,7 @@ student1 = DistilBertForTokenClassification.from_pretrained('distilbert-base-cas
 student2 = DistilBertForTokenClassification.from_pretrained('distilbert-base-cased', num_labels=NUM_LABELS)
 
 # Prepare Dataset & Loaders
-sampling = 0.01
+sampling = 0.1
 train_loader = DataLoader(sample_dataset(tokenized_datasets["train"], sample_size=sampling), batch_size=BATCH_SIZE)
 validation_loader = DataLoader(sample_dataset(tokenized_datasets["validation"], sample_size=sampling), batch_size=BATCH_SIZE)
 test_loader = DataLoader(sample_dataset(tokenized_datasets["test"], sample_size=sampling), batch_size=BATCH_SIZE)
@@ -164,18 +164,6 @@ for epoch in range(NUM_EPOCHS):
         predictions2 = torch.argmax(student2(**batch).logits, dim=-1)
         correct_predictions2 += (predictions2 == batch['labels']).sum().item()
         total_predictions2 += batch['labels'].numel()
-
-        # Logging
-        if i % 5 == 0:
-            accuracy1 = correct_predictions1 / total_predictions1
-            accuracy2 = correct_predictions2 / total_predictions2
-            print(f'Epoch {epoch+1}/{NUM_EPOCHS}, Batch {i+1}/{len(train_loader)}, Train1 Loss: {student1_loss.item():.4f}, Train2 Loss: {student2_loss.item():.4f}, Accuracy1: {accuracy1:.4f}, Accuracy2: {accuracy2:.4f}')
-            # Optionally, reset for more fine-grained batch accuracy rather than cumulative
-            correct_predictions1 = 0
-            total_predictions1 = 0
-            correct_predictions2 = 0
-            total_predictions2 = 0
-
 
     # Validation step
     eval_st1_loss, eval_st1_accuracy = evaluate_model(student1, validation_loader, device)
