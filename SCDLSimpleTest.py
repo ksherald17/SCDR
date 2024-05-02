@@ -9,6 +9,7 @@ from torch.nn import KLDivLoss
 import logging
 import os
 from torch.utils.tensorboard import SummaryWriter
+import numpy as np
 
 # Environment setup
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = "expandable_segments:True"
@@ -43,13 +44,13 @@ tokenized_datasets = dataset.map(tokenize_and_align_labels, batched=True)
 tokenized_datasets.set_format(type='torch', columns=['input_ids', 'attention_mask', 'labels'])
 
 # Initialize models
-teacher1 = BertForTokenClassification.from_pretrained('bert-base-cased', num_labels=NUM_LABELS)
-teacher2 = BertForTokenClassification.from_pretrained('bert-base-cased', num_labels=NUM_LABELS)
-student1 = DistilBertForTokenClassification.from_pretrained('distilbert-base-cased', num_labels=NUM_LABELS)
-student2 = DistilBertForTokenClassification.from_pretrained('distilbert-base-cased', num_labels=NUM_LABELS)
+teacher1 = BertForTokenClassification.from_pretrained('roberta-base', num_labels=NUM_LABELS)
+teacher2 = BertForTokenClassification.from_pretrained('roberta-base', num_labels=NUM_LABELS)
+student1 = DistilBertForTokenClassification.from_pretrained('distilroberta-base', num_labels=NUM_LABELS)
+student2 = DistilBertForTokenClassification.from_pretrained('distilroberta-base', num_labels=NUM_LABELS)
 
 # Prepare Dataset & Loaders
-sampling = 0.1
+sampling = 0.01
 train_loader = DataLoader(sample_dataset(tokenized_datasets["train"], sample_size=sampling), batch_size=BATCH_SIZE)
 validation_loader = DataLoader(sample_dataset(tokenized_datasets["validation"], sample_size=sampling), batch_size=BATCH_SIZE)
 test_loader = DataLoader(sample_dataset(tokenized_datasets["test"], sample_size=sampling), batch_size=BATCH_SIZE)
@@ -119,14 +120,12 @@ def evaluate_model(model, dataloader, device):
     accuracy = total_correct / total_examples if total_examples > 0 else 0
     return total_eval_loss / len(dataloader), accuracy
 
-# Initialize TensorBoard writer
-log_dir = "logs"
-os.makedirs(log_dir, exist_ok=True)
-writer = SummaryWriter(log_dir=log_dir)
-
 # Training loop
-best_st1_accuracy = 0
-best_st2_accuracy = 0
+best_val_accuracy = 0.0
+early_stopping_rounds = 5
+early_stopping_counter = 0
+writer = SummaryWriter()
+
 for epoch in range(NUM_EPOCHS):
     student1.train()
     student2.train()
@@ -174,40 +173,42 @@ for epoch in range(NUM_EPOCHS):
         total_predictions2 += batch['labels'].numel()
 
         # Logging
-        # if i % 5 == 0:
-        writer.add_scalar("Accuracy/Student1", correct_predictions1/total_predictions1, epoch * len(train_loader) + i)
-        writer.add_scalar("Accuracy/Student2", correct_predictions2/total_predictions2, epoch * len(train_loader) + i)
-
+        if i % 5 == 0:
+            logging.info(f'Epoch {epoch+1}/{NUM_EPOCHS}, Batch {i+1}/{len(train_loader)}, Train1 Loss: {student1_loss.item():.4f}, Train2 Loss: {student2_loss.item():.4f}, Accuracy1: {correct_predictions1/total_predictions1:.4f}, Accuracy2: {correct_predictions2/total_predictions2:.4f}')
+            writer.add_scalar('Loss/Student1', student1_loss.item(), epoch * len(train_loader) + i)
+            writer.add_scalar('Loss/Student2', student2_loss.item(), epoch * len(train_loader) + i)
+            writer.add_scalar('Accuracy/Student1', correct_predictions1/total_predictions1, epoch * len(train_loader) + i)
+            writer.add_scalar('Accuracy/Student2', correct_predictions2/total_predictions2, epoch * len(train_loader) + i)
+            
     # Validation step
     eval_st1_loss, eval_st1_accuracy = evaluate_model(student1, validation_loader, device)
     eval_st2_loss, eval_st2_accuracy = evaluate_model(student2, validation_loader, device)
-    writer.add_scalar("Validation/Loss/Student1", eval_st1_loss, epoch)
-    writer.add_scalar("Validation/Loss/Student2", eval_st2_loss, epoch)
-    writer.add_scalar("Validation/Accuracy/Student1", eval_st1_accuracy, epoch)
-    writer.add_scalar("Validation/Accuracy/Student2", eval_st2_accuracy, epoch)
+    logging.info(f'Epoch {epoch+1}/{NUM_EPOCHS}, St1 [Validation Loss: {eval_st1_loss:.4f}, Accuracy: {eval_st1_accuracy:.3f}] | St2 [Validation Loss: {eval_st2_loss:.4f}, Accuracy: {eval_st2_accuracy:.3f}]')
+    writer.add_scalar('Validation_Loss/Student1', eval_st1_loss, epoch)
+    writer.add_scalar('Validation_Accuracy/Student1', eval_st1_accuracy, epoch)
+    writer.add_scalar('Validation_Loss/Student2', eval_st2_loss, epoch)
+    writer.add_scalar('Validation_Accuracy/Student2', eval_st2_accuracy, epoch)
 
-    # Checkpointing based on validation accuracy
-    if eval_st1_accuracy > best_st1_accuracy:
-        best_st1_accuracy = eval_st1_accuracy
-        torch.save(student1.state_dict(), "best_student1_model.pt")
+    # Early stopping
+    if eval_st1_accuracy > best_val_accuracy and eval_st2_accuracy > best_val_accuracy:
+        best_val_accuracy = max(eval_st1_accuracy, eval_st2_accuracy)
+        torch.save(student1.state_dict(), "student1_best_model.pt")
+        torch.save(student2.state_dict(), "student2_best_model.pt")
+        early_stopping_counter = 0
+    else:
+        early_stopping_counter += 1
+        if early_stopping_counter >= early_stopping_rounds:
+            logging.info("Early stopping triggered!")
+            break
 
-    if eval_st2_accuracy > best_st2_accuracy:
-        best_st2_accuracy = eval_st2_accuracy
-        torch.save(student2.state_dict(), "best_student2_model.pt")
+# Load the best models
+student1.load_state_dict(torch.load("student1_best_model.pt"))
+student2.load_state_dict(torch.load("student2_best_model.pt"))
 
-    # Test for overfitting using test dataset
-    # test_st1_loss, test_st1_accuracy = evaluate_model(student1, test_loader, device)
-    # test_st2_loss, test_st2_accuracy = evaluate_model(student2, test_loader, device)
-    # writer.add_scalar("Test/Loss/Student1", test_st1_loss, epoch)
-    # writer.add_scalar("Test/Loss/Student2", test_st2_loss, epoch)
-    # writer.add_scalar("Test/Accuracy/Student1", test_st1_accuracy, epoch)
-    # writer.add_scalar("Test/Accuracy/Student2", test_st2_accuracy, epoch)
+# Evaluate on test set
+test_st1_loss, test_st1_accuracy = evaluate_model(student1, test_loader, device)
+test_st2_loss, test_st2_accuracy = evaluate_model(student2, test_loader, device)
+logging.info(f'St1 [Test Loss: {test_st1_loss:.4f}, Accuracy: {test_st1_accuracy:.3f}] | St2 [Test Loss: {test_st2_loss:.4f}, Accuracy: {test_st2_accuracy:.3f}]')
 
-# Close TensorBoard writer
+# Close tensorboard writer
 writer.close()
-
-# Save the models
-torch.save(student1.state_dict(), "student1_model.pt")
-torch.save(student2.state_dict(), "student2_model.pt")
-torch.save(teacher1.state_dict(), "teacher1_model.pt")
-torch.save(teacher2.state_dict(), "teacher2_model.pt")
