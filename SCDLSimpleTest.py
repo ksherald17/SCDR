@@ -75,15 +75,19 @@ def apply_ema(teacher, student, alpha=ALPHA):
         for t_param, s_param in zip(teacher.parameters(), student.parameters()):
             t_param.data.mul_(alpha).add_(s_param.data, alpha=1 - alpha)
 
-def soft_label_cross_entropy(preds, soft_labels, true_labels, confidence_mask, temperature=2.0):
+def soft_label_cross_entropy(preds, soft_labels, true_labels, confidence_mask, temperature=1.0):
     # Apply softmax with temperature to the student predictions
     student_probs = F.softmax(preds / temperature, dim=-1)
 
     # Calculate the soft label loss using KL divergence
     soft_label_loss = F.kl_div(F.log_softmax(student_probs, dim=-1), soft_labels, reduction='none').sum(dim=-1)
     
-    # Calculate the hard label loss
-    true_label_loss = F.cross_entropy(preds.sum(dim=(1, 2)).float(), true_labels.float(), reduction='none')
+    # Filter out padding values from true labels
+    mask = true_labels != -100
+    filtered_true_labels = true_labels[mask]
+
+    # Calculate the hard label loss only for non-padding tokens
+    true_label_loss = F.cross_entropy(preds[mask].view(-1, preds.size(-1)), filtered_true_labels, reduction='none')
     
     # Apply confidence mask to the soft label loss component
     combined_loss = confidence_mask * soft_label_loss + (1 - confidence_mask) * true_label_loss
