@@ -78,6 +78,10 @@ def soft_label_cross_entropy(preds, soft_labels, true_labels, confidence_mask):
     # Check the shape of true_labels
     print("Shape of true_labels:", true_labels.shape)
 
+    # Check the shape of preds and soft_labels
+    print("Shape of preds:", preds.shape)
+    print("Shape of soft_labels:", soft_labels.shape)
+
 
     # Calculate the soft label loss using KL divergence
     soft_label_loss = F.kl_div(F.log_softmax(preds, dim=-1), soft_labels, reduction='none').sum(dim=-1)
