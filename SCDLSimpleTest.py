@@ -30,6 +30,7 @@ def tokenize_and_align_labels(examples):
         [-100 if word_id is None else label[word_id] for word_id in tokenized_inputs.word_ids(batch_index=i)]
         for i, label in enumerate(examples["ner_tags"])
     ]
+    tokenized_inputs["labels"] = torch.tensor(tokenized_inputs["labels"])
     return tokenized_inputs
 
 tokenized_datasets = dataset.map(tokenize_and_align_labels, batched=True)
