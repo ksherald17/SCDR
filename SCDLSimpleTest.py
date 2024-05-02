@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from transformers import BertTokenizerFast, BertForTokenClassification, DistilBertForTokenClassification
 from datasets import load_dataset
