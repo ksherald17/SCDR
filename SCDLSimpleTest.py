@@ -145,11 +145,6 @@ for epoch in range(NUM_EPOCHS):
         batch = {k: v.to(device) for k, v in batch.items()}
         labels = batch['labels']
         
-        correct_predictions1 = 0
-        total_predictions1 = 0
-        correct_predictions2 = 0
-        total_predictions2 = 0
-
         # Teacher predictions
         with torch.no_grad():
             teacher1_logits = teacher1(**batch).logits
@@ -187,8 +182,8 @@ for epoch in range(NUM_EPOCHS):
             logging.info(f'Epoch {epoch+1}/{NUM_EPOCHS}, Batch {i+1}/{len(train_loader)}, Train1 Loss: {student1_loss.item():.4f}, Train2 Loss: {student2_loss.item():.4f}, Accuracy1: {accuracy1:.4f}, Accuracy2: {accuracy2:.4f}')
         writer.add_scalar('Loss/Student1', student1_loss.item(), epoch * len(train_loader) + i)
         writer.add_scalar('Loss/Student2', student2_loss.item(), epoch * len(train_loader) + i)
-        writer.add_scalar('Accuracy/Student1', correct_predictions1/total_predictions1, epoch * len(train_loader) + i)
-        writer.add_scalar('Accuracy/Student2', correct_predictions2/total_predictions2, epoch * len(train_loader) + i)
+        writer.add_scalar('Accuracy/Student1', accuracy1, epoch * len(train_loader) + i)
+        writer.add_scalar('Accuracy/Student2', accuracy2, epoch * len(train_loader) + i)
             
     # Validation step
     eval_st1_loss, eval_st1_accuracy = evaluate_model(student1, validation_loader, device)
