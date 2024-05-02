@@ -84,6 +84,8 @@ def soft_label_cross_entropy(preds, soft_labels, true_labels, confidence_mask):
     
     # Calculate the hard label loss
     true_label_loss = F.cross_entropy(preds, true_labels, reduction='none')
+
+    true_label_loss = true_label_loss.view(*preds.size()[:-1])
     
     # Apply confidence mask to the soft label loss component
     combined_loss = confidence_mask * soft_label_loss + (1 - confidence_mask) * true_label_loss
