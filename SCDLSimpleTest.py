@@ -44,10 +44,10 @@ tokenized_datasets = dataset.map(tokenize_and_align_labels, batched=True)
 tokenized_datasets.set_format(type='torch', columns=['input_ids', 'attention_mask', 'labels'])
 
 # Initialize models
-teacher1 = BertForTokenClassification.from_pretrained('roberta-base', num_labels=NUM_LABELS)
-teacher2 = BertForTokenClassification.from_pretrained('roberta-base', num_labels=NUM_LABELS)
-student1 = DistilBertForTokenClassification.from_pretrained('distilroberta-base', num_labels=NUM_LABELS)
-student2 = DistilBertForTokenClassification.from_pretrained('distilroberta-base', num_labels=NUM_LABELS)
+teacher1 = BertForTokenClassification.from_pretrained('bert-base-uncased', num_labels=NUM_LABELS)
+teacher2 = BertForTokenClassification.from_pretrained('bert-base-uncased', num_labels=NUM_LABELS)
+student1 = DistilBertForTokenClassification.from_pretrained('distilbert-base-uncased', num_labels=NUM_LABELS)
+student2 = DistilBertForTokenClassification.from_pretrained('distilbert-base-uncased', num_labels=NUM_LABELS)
 
 # Prepare Dataset & Loaders
 sampling = 0.01
