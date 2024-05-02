@@ -75,7 +75,7 @@ def soft_label_cross_entropy(preds, soft_labels, true_labels, confidence_mask):
     if true_labels.dim() > 1:
         true_labels = torch.argmax(true_labels, dim=-1)  # Convert one-hot encoded labels to class indices
 
-    while true_labels.dim() < preds.dim():
+    while true_labels.dim() < preds.dim()-1:
         true_labels = torch.unsqueeze(true_labels, -1)
 
     # Calculate the soft label loss using KL divergence
