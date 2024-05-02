@@ -50,7 +50,7 @@ student1 = DistilBertForTokenClassification.from_pretrained('distilroberta-base'
 student2 = DistilBertForTokenClassification.from_pretrained('distilroberta-base', num_labels=NUM_LABELS)
 
 # Prepare Dataset & Loaders
-sampling = 0.1
+sampling = 0.8
 train_loader = DataLoader(sample_dataset(tokenized_datasets["train"], sample_size=sampling), batch_size=BATCH_SIZE)
 validation_loader = DataLoader(sample_dataset(tokenized_datasets["validation"], sample_size=sampling), batch_size=BATCH_SIZE)
 test_loader = DataLoader(sample_dataset(tokenized_datasets["test"], sample_size=sampling), batch_size=BATCH_SIZE)
