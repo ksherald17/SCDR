@@ -50,7 +50,7 @@ student1 = DistilBertForTokenClassification.from_pretrained('distilroberta-base'
 student2 = DistilBertForTokenClassification.from_pretrained('distilroberta-base', num_labels=NUM_LABELS)
 
 # Prepare Dataset & Loaders
-sampling = 0.01
+sampling = 0.1
 train_loader = DataLoader(sample_dataset(tokenized_datasets["train"], sample_size=sampling), batch_size=BATCH_SIZE)
 validation_loader = DataLoader(sample_dataset(tokenized_datasets["validation"], sample_size=sampling), batch_size=BATCH_SIZE)
 test_loader = DataLoader(sample_dataset(tokenized_datasets["test"], sample_size=sampling), batch_size=BATCH_SIZE)
@@ -125,6 +125,9 @@ best_val_accuracy = 0.0
 early_stopping_rounds = 5
 early_stopping_counter = 0
 writer = SummaryWriter()
+
+teacher1.eval()
+teacher2.eval()
 
 for epoch in range(NUM_EPOCHS):
     student1.train()
