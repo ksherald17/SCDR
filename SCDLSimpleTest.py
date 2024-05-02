@@ -34,6 +34,10 @@ def tokenize_and_align_labels(examples):
     tokenized_inputs["labels"] = labels
     return tokenized_inputs
 
+# Sampling a subset of the data for quicker iterations
+def sample_dataset(dataset, sample_size=0.1):
+    return dataset.shuffle(seed=42).select(range(int(len(dataset) * sample_size)))
+
 tokenized_datasets = dataset.map(tokenize_and_align_labels, batched=True)
 tokenized_datasets.set_format(type='torch', columns=['input_ids', 'attention_mask', 'labels'])
 
@@ -44,8 +48,10 @@ student1 = DistilBertForTokenClassification.from_pretrained('distilbert-base-cas
 student2 = DistilBertForTokenClassification.from_pretrained('distilbert-base-cased', num_labels=NUM_LABELS)
 
 # Prepare Dataset & Loaders
-train_loader = DataLoader(tokenized_datasets["train"], batch_size=BATCH_SIZE)
-validation_loader = DataLoader(tokenized_datasets["validation"], batch_size=BATCH_SIZE)
+sampling = 0.01
+train_loader = DataLoader(sample_dataset(tokenized_datasets["train"], sample_size=sampling), batch_size=BATCH_SIZE)
+validation_loader = DataLoader(sample_dataset(tokenized_datasets["validation"], sample_size=sampling), batch_size=BATCH_SIZE)
+test_loader = DataLoader(sample_dataset(tokenized_datasets["test"], sample_size=sampling), batch_size=BATCH_SIZE)
 
 # Device setup
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
