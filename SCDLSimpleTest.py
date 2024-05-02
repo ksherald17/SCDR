@@ -50,7 +50,7 @@ student1 = DistilBertForTokenClassification.from_pretrained('distilroberta-base'
 student2 = DistilBertForTokenClassification.from_pretrained('distilroberta-base', num_labels=NUM_LABELS)
 
 # Prepare Dataset & Loaders
-sampling = 0.8
+sampling = 0.01
 train_loader = DataLoader(sample_dataset(tokenized_datasets["train"], sample_size=sampling), batch_size=BATCH_SIZE)
 validation_loader = DataLoader(sample_dataset(tokenized_datasets["validation"], sample_size=sampling), batch_size=BATCH_SIZE)
 test_loader = DataLoader(sample_dataset(tokenized_datasets["test"], sample_size=sampling), batch_size=BATCH_SIZE)
@@ -72,19 +72,15 @@ kl_div_loss = KLDivLoss(reduction='batchmean')
 # Apply EMA (Student -> Teacher)
 def apply_ema(teacher, student, alpha=ALPHA):
     with torch.no_grad():
-        teacher_params = dict(teacher.named_parameters())
-        student_params = dict(student.named_parameters())
-        for name, param in teacher_params.items():
-            if name in student_params:
-                param.data.lerp_(student_params[name].data, 1 - alpha) # linear interpolation
+        for t_param, s_param in zip(teacher.parameters(), student.parameters()):
+            t_param.data.mul_(alpha).add_(s_param.data, alpha=1 - alpha)
 
-def soft_label_cross_entropy(preds, soft_labels, true_labels, confidence_mask):
-    # Ensure true labels are class indices for cross_entropy
-    if true_labels.dim() > 1:
-        true_labels = torch.argmax(true_labels, dim=-1)  # Convert one-hot encoded labels to class indices
+def soft_label_cross_entropy(preds, soft_labels, true_labels, confidence_mask, temperature=2.0):
+    # Apply softmax with temperature to the student predictions
+    student_probs = F.softmax(preds / temperature, dim=-1)
 
     # Calculate the soft label loss using KL divergence
-    soft_label_loss = F.kl_div(F.log_softmax(preds, dim=-1), soft_labels, reduction='none').sum(dim=-1)
+    soft_label_loss = F.kl_div(F.log_softmax(student_probs, dim=-1), soft_labels, reduction='none').sum(dim=-1)
     
     # Calculate the hard label loss
     true_label_loss = F.cross_entropy(preds.sum(dim=(1, 2)).float(), true_labels.float(), reduction='none')
@@ -178,7 +174,7 @@ for epoch in range(NUM_EPOCHS):
         accuracy2 = calculate_accuracy(predictions2, batch['labels'])
 
         # Logging
-        if i % 50 == 0:
+        if i % 3 == 0:
             logging.info(f'Epoch {epoch+1}/{NUM_EPOCHS}, Batch {i+1}/{len(train_loader)}, Train1 Loss: {student1_loss.item():.4f}, Train2 Loss: {student2_loss.item():.4f}, Accuracy1: {accuracy1:.4f}, Accuracy2: {accuracy2:.4f}')
         writer.add_scalar('Loss/Student1', student1_loss.item(), epoch * len(train_loader) + i)
         writer.add_scalar('Loss/Student2', student2_loss.item(), epoch * len(train_loader) + i)
