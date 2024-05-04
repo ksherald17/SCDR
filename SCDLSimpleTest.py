@@ -38,7 +38,7 @@ def tokenize_and_align_labels(examples):
 tokenized_datasets = dataset.map(tokenize_and_align_labels, batched=True)
 tokenized_datasets.set_format(type='torch', columns=['input_ids', 'attention_mask', 'labels'])
 
-def sample_dataset(dataset, sample_size=0.1):
+def sample_dataset(dataset, sample_size=0.01):
     return dataset.shuffle(seed=42).select(range(int(len(dataset) * sample_size)))
 
 train_dataset = sample_dataset(tokenized_datasets["train"])
@@ -90,6 +90,15 @@ def evaluate_model(model, dataloader, device):
     accuracy = total_correct / total_examples if total_examples > 0 else 0
     return total_eval_loss / len(dataloader), accuracy
 
+def calculate_batch_accuracy(logits, labels):
+    # Flatten the logits and labels if they are not already flat
+    predictions = torch.argmax(logits, dim=-1)
+    mask = labels != -100  # Assuming -100 is used to mask out irrelevant tokens/positions
+    correct_predictions = (predictions == labels) & mask
+    total_correct = correct_predictions.sum().item()
+    total = mask.sum().item()  # Total non-masked elements
+    return (total_correct / total) * 100 if total > 0 else 0
+
 def apply_ema(teacher, student, alpha):
     with torch.no_grad():
         teacher_params = {name: param for name, param in teacher.named_parameters()}
@@ -102,8 +111,6 @@ def apply_ema(teacher, student, alpha):
                     param.data.copy_(alpha * param.data + (1 - alpha) * student_param.data)
                 else:
                     logging.warning(f"Skipping EMA for {name} due to shape mismatch: {param.data.shape} vs {student_param.data.shape}")
-            else:
-                logging.warning(f"Student model missing parameter {name} for EMA")
 
 def adjust_confidence_threshold(dataloader, model, device, percentile=75):
     all_confidences = []
@@ -165,6 +172,13 @@ for epoch in range(NUM_EPOCHS):
         # Update students using enhanced loss function with dynamic confidence threshold
         student1_loss = enhanced_loss_function(student1(**batch).logits, labels, soft_labels2, threshold2)
         student2_loss = enhanced_loss_function(student2(**batch).logits, labels, soft_labels1, threshold1)
+
+        # Calculate accuracy for the current batch
+        batch_accuracy1 = calculate_batch_accuracy(outputs1, labels)
+        batch_accuracy2 = calculate_batch_accuracy(outputs2, labels)
+
+        # Logging the batch accuracy
+        logging.info(f"Epoch {epoch+1}, Batch {i+1}, Student1 Accuracy: {batch_accuracy1:.2f}%, Student2 Accuracy: {batch_accuracy2:.2f}%")
         
         # Optimizer steps
         optimizer_s1.zero_grad()
@@ -178,6 +192,8 @@ for epoch in range(NUM_EPOCHS):
         # TensorBoard logging for training
         writer.add_scalar('Loss/Student1', student1_loss.item(), epoch * len(train_loader) + i)
         writer.add_scalar('Loss/Student2', student2_loss.item(), epoch * len(train_loader) + i)
+        writer.add_scalar('Batch_Accuracy/Student1', batch_accuracy1, epoch * len(train_loader) + i)
+        writer.add_scalar('Batch_Accuracy/Student2', batch_accuracy2, epoch * len(train_loader) + i)
 
         # Apply EMA periodically
         if (i + 1) % EMA_UPDATE_PERIOD == 0:
