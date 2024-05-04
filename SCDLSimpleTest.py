@@ -105,6 +105,20 @@ def apply_ema(teacher, student, alpha):
             else:
                 logging.warning(f"Student model missing parameter {name} for EMA")
 
+def adjust_confidence_threshold(teacher, dataloader, device, percentile=75):
+    all_confidences = []
+    teacher.eval()
+    with torch.no_grad():
+        for batch in dataloader:
+            inputs = {k: v.to(device) for k, v in batch.items()}
+            outputs = teacher(**inputs).logits
+            confidences = torch.softmax(outputs, dim=-1).max(dim=-1)[0]  # Get the maximum softmax output across classes for each token
+            all_confidences.append(confidences)
+    
+    all_confidences = torch.cat(all_confidences)
+    threshold = np.percentile(all_confidences.cpu().numpy(), percentile)
+    return threshold
+
 # TensorBoard setup
 writer = SummaryWriter()
 
