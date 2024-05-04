@@ -168,8 +168,8 @@ for epoch in range(NUM_EPOCHS):
             threshold2 = adjust_confidence_threshold(validation_loader, teacher2, device=device)
 
         # Update students using enhanced loss function with dynamic confidence threshold
-        student1_logits = student1(**batch).logits
-        student2_logits = student1(**batch).logits
+        student1_logits = student1(**batch).logits.clone()
+        student2_logits = student1(**batch).logits.clone()
         student1_loss = enhanced_loss_function(student1_logits, labels, soft_labels2, threshold2)
         student2_loss = enhanced_loss_function(student2_logits, labels, soft_labels1, threshold1)
 
