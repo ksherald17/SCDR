@@ -107,7 +107,6 @@ def apply_ema(teacher, student, alpha):
 
 def adjust_confidence_threshold(teacher, dataloader, device, percentile=75):
     all_confidences = []
-    teacher.eval()
     with torch.no_grad():
         for batch in dataloader:
             inputs = {k: v.to(device) for k, v in batch.items()}
@@ -118,6 +117,21 @@ def adjust_confidence_threshold(teacher, dataloader, device, percentile=75):
     all_confidences = torch.cat(all_confidences)
     threshold = np.percentile(all_confidences.cpu().numpy(), percentile)
     return threshold
+
+def enhanced_loss_function(outputs, labels, soft_labels, threshold):
+    # Calculate the hard label loss using cross-entropy
+    hard_loss = F.cross_entropy(outputs, labels, ignore_index=-100)
+    
+    # Calculate the soft label loss using KL divergence
+    soft_loss = F.kl_div(F.log_softmax(outputs, dim=-1), F.softmax(soft_labels, dim=-1), reduction='batchmean')
+    
+    # Apply a threshold to determine which loss to prioritize
+    confidence_mask = (torch.max(soft_labels, dim=-1)[0] > threshold).float()
+    
+    # Combine losses using the confidence mask
+    combined_loss = (confidence_mask * soft_loss + (1 - confidence_mask) * hard_loss).mean()
+    
+    return combined_loss
 
 # TensorBoard setup
 writer = SummaryWriter()
