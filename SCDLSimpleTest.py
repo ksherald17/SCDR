@@ -168,14 +168,12 @@ for epoch in range(NUM_EPOCHS):
             threshold2 = adjust_confidence_threshold(validation_loader, teacher2, device=device)
 
         # Update students using enhanced loss function with dynamic confidence threshold
-        student1_logits = student1(**batch).logits.clone()
-        student2_logits = student1(**batch).logits.clone()
-        student1_loss = enhanced_loss_function(student1_logits, labels, soft_labels2, threshold2)
-        student2_loss = enhanced_loss_function(student2_logits, labels, soft_labels1, threshold1)
+        student1_loss = enhanced_loss_function(student1(**batch).logits, labels, soft_labels2, threshold2)
+        student2_loss = enhanced_loss_function(student2(**batch).logits, labels, soft_labels1, threshold1)
 
         # Calculate accuracy for the current batch
-        batch_accuracy1 = calculate_batch_accuracy(student1_logits, labels)
-        batch_accuracy2 = calculate_batch_accuracy(student2_logits, labels)
+        batch_accuracy1 = calculate_batch_accuracy(student1(**batch).logits, labels)
+        batch_accuracy2 = calculate_batch_accuracy(student2(**batch).logits, labels)
 
         # Logging the batch accuracy
         logging.info(f"Epoch {epoch+1}, Batch {i+1}, Student1 Accuracy: {batch_accuracy1:.2f}%, Student2 Accuracy: {batch_accuracy2:.2f}%")
