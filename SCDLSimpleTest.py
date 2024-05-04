@@ -4,42 +4,25 @@ from torch.utils.data import DataLoader
 from transformers import BertTokenizerFast, BertForTokenClassification, DistilBertForTokenClassification
 from datasets import load_dataset
 from torch.optim import AdamW
-from torch.nn.functional import cross_entropy, softmax, log_softmax, kl_div
 from torch.nn import KLDivLoss
 import logging
-import os
-from torch.utils.tensorboard import SummaryWriter
 import numpy as np
+from torch.utils.tensorboard import SummaryWriter
 
-# Environment setup
-os.environ['PYTORCH_CUDA_ALLOC_CONF'] = "expandable_segments:True"
+# Setup logging and TensorBoard writer
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+writer = SummaryWriter()
 
 # Constants
-ALPHA = 0.99            # EMA coefficient
-NUM_EPOCHS = 3          # Number of training epochs
-BATCH_SIZE = 8          # Batch size for training
-EMA_UPDATE_PERIOD = 10  # Apply EMA updates every 10 batches
+NUM_LABELS = dataset['train'].features['ner_tags'].feature.num_classes
+NUM_EPOCHS = 3
+BATCH_SIZE = 8
+ALPHA = 0.99
+EMA_UPDATE_PERIOD = 10
 
 # Load and preprocess the dataset
 tokenizer = BertTokenizerFast.from_pretrained('bert-base-cased')
 dataset = load_dataset("conll2003")
-NUM_LABELS = dataset['train'].features['ner_tags'].feature.num_classes
-
-def tokenize_and_align_labels(examples):
-    tokenized_inputs = tokenizer(examples['tokens'], truncation=True, padding="max_length", is_split_into_words=True, return_token_type_ids=False)
-    labels = []
-    for i, label in enumerate(examples['ner_tags']):
-        word_ids = tokenized_inputs.word_ids(batch_index=i)
-        label_ids = [-100 if word_id is None else label[word_id] for word_id in word_ids]
-        labels.append(label_ids)
-    tokenized_inputs["labels"] = labels
-    return tokenized_inputs
-
-# Sampling a subset of the data for quicker iterations
-def sample_dataset(dataset, sample_size=0.1):
-    return dataset.shuffle(seed=42).select(range(int(len(dataset) * sample_size)))
-
 tokenized_datasets = dataset.map(tokenize_and_align_labels, batched=True)
 tokenized_datasets.set_format(type='torch', columns=['input_ids', 'attention_mask', 'labels'])
 
@@ -50,10 +33,9 @@ student1 = DistilBertForTokenClassification.from_pretrained('distilbert-base-unc
 student2 = DistilBertForTokenClassification.from_pretrained('distilbert-base-uncased', num_labels=NUM_LABELS)
 
 # Prepare Dataset & Loaders
-sampling = 0.01
-train_loader = DataLoader(sample_dataset(tokenized_datasets["train"], sample_size=sampling), batch_size=BATCH_SIZE)
-validation_loader = DataLoader(sample_dataset(tokenized_datasets["validation"], sample_size=sampling), batch_size=BATCH_SIZE)
-test_loader = DataLoader(sample_dataset(tokenized_datasets["test"], sample_size=sampling), batch_size=BATCH_SIZE)
+train_loader = DataLoader(tokenized_datasets["train"], batch_size=BATCH_SIZE, shuffle=True)
+validation_loader = DataLoader(tokenized_datasets["validation"], batch_size=BATCH_SIZE)
+test_loader = DataLoader(tokenized_datasets["test"], batch_size=BATCH_SIZE)
 
 # Device setup
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -69,45 +51,24 @@ optimizer_s2 = AdamW(student2.parameters(), lr=5e-5)
 # Loss function
 kl_div_loss = KLDivLoss(reduction='batchmean')
 
-# Apply EMA (Student -> Teacher)
-def apply_ema(teacher, student, alpha=ALPHA):
+# Dynamic confidence threshold function
+def adjust_confidence_threshold(validation_loader, model, percentile=75):
+    softmax_outputs = []
+    model.eval()
     with torch.no_grad():
-        teacher_params = dict(teacher.named_parameters())
-        student_params = dict(student.named_parameters())
-        for name, t_param in teacher_params.items():
-            if name in student_params:
-                s_param = student_params[name]
-                if s_param.shape != t_param.shape:
-                    # Resize student parameters to match the shape of teacher parameters
-                    s_param = s_param.view(*t_param.shape)
-                # Create new tensors for EMA update
-                ema_param = alpha * t_param + (1 - alpha) * s_param
-                # Update teacher parameters
-                t_param.copy_(ema_param)
+        for batch in validation_loader:
+            batch = {k: v.to(device) for k, v in batch.items()}
+            outputs = model(**batch).logits
+            softmax_outputs.extend(torch.softmax(outputs, dim=-1).max(dim=-1)[0].cpu().numpy())
+    return np.percentile(softmax_outputs, percentile)
 
-def soft_label_cross_entropy(preds, soft_labels, true_labels, confidence_mask, temperature=2.0):
-    # Ensure true labels are class indices for cross_entropy
-    if true_labels.dim() > 1:
-        true_labels = torch.argmax(true_labels, dim=-1)  # Convert one-hot encoded labels to class indices
+# Enhanced loss function with denoising
+def enhanced_loss_function(outputs, labels, soft_labels, threshold):
+    hard_loss = F.cross_entropy(outputs, labels, ignore_index=-100)
+    soft_loss = F.kl_div(F.log_softmax(outputs, dim=-1), soft_labels, reduction='batchmean')
+    confidence_mask = (torch.max(soft_labels, dim=-1)[0] > threshold).float()
+    return (confidence_mask * soft_loss + (1 - confidence_mask) * hard_loss).mean()
 
-    # Calculate the soft label loss using KL divergence
-    soft_label_loss = F.kl_div(F.log_softmax(preds / temperature, dim=-1), soft_labels, reduction='none').sum(dim=-1)
-    
-    # Calculate the hard label loss
-    true_label_loss = F.cross_entropy(preds.sum(dim=(1, 2)).float(), true_labels.float(), reduction='none')
-    
-    # Apply confidence mask to the soft label loss component
-    combined_loss = confidence_mask * soft_label_loss + (1 - confidence_mask) * true_label_loss
-    return combined_loss.mean()
-
-# Generate a confidence mask for tokens where the maximum predicted probability 
-# from the teacher model exceeds a given threshold.
-def generate_confidence_mask(soft_labels, threshold=0.9):
-    max_probs, _ = torch.max(soft_labels, dim=-1)  # Get the max probability for each token/class
-    confidence_mask = (max_probs >= threshold).float()  # Compare to threshold and convert to float for masking
-    return confidence_mask
-
-# Function to evaluate model
 def evaluate_model(model, dataloader, device):
     model.eval()
     total_eval_loss = 0
@@ -116,9 +77,9 @@ def evaluate_model(model, dataloader, device):
     for batch in dataloader:
         batch = {k: v.to(device) for k, v in batch.items()}
         with torch.no_grad():
-            output = model(**batch)
-            logits = output.logits
-            loss = cross_entropy(logits.view(-1, NUM_LABELS), batch['labels'].view(-1))
+            outputs = model(**batch)
+            logits = outputs.logits
+            loss = F.cross_entropy(logits.view(-1, NUM_LABELS), batch['labels'].view(-1), ignore_index=-100)
             total_eval_loss += loss.item()
             predictions = torch.argmax(logits, dim=-1)
             correct_labels = batch['labels'] != -100
@@ -127,44 +88,31 @@ def evaluate_model(model, dataloader, device):
     accuracy = total_correct / total_examples if total_examples > 0 else 0
     return total_eval_loss / len(dataloader), accuracy
 
-# Function to calculate accuracy
-def calculate_accuracy(predictions, labels):
-    # Compute accuracy, considering -100 labels that should be ignored
-    mask = labels != -100
-    correct_predictions = (predictions[mask] == labels[mask]).sum().item()
-    total_predictions = mask.sum().item()
-    accuracy = correct_predictions / total_predictions if total_predictions > 0 else 0
-    return accuracy
-
 # Training loop
 best_val_accuracy = 0.0
-early_stopping_rounds = 5
 early_stopping_counter = 0
-writer = SummaryWriter()
-
-teacher1.eval()
-teacher2.eval()
-
+early_stopping_rounds = 5
 for epoch in range(NUM_EPOCHS):
     student1.train()
     student2.train()
-    for i, batch in enumerate(train_loader): 
+    for i, batch in enumerate(train_loader):
         batch = {k: v.to(device) for k, v in batch.items()}
         labels = batch['labels']
-        
-        # Teacher predictions
+
+        # Teacher predictions and soft labels
         with torch.no_grad():
             teacher1_logits = teacher1(**batch).logits
             teacher2_logits = teacher2(**batch).logits
-            soft_labels1 = softmax(teacher1_logits, dim=-1)
-            soft_labels2 = softmax(teacher2_logits, dim=-1)
-            confidence_mask1 = generate_confidence_mask(soft_labels1)
-            confidence_mask2 = generate_confidence_mask(soft_labels2)
+            soft_labels1 = F.softmax(teacher1_logits, dim=-1)
+            soft_labels2 = F.softmax(teacher2_logits, dim=-1)
+            threshold1 = adjust_confidence_threshold(validation_loader, teacher1, device=device)
+            threshold2 = adjust_confidence_threshold(validation_loader, teacher2, device=device)
 
-        # Update students using soft labels with confidence masking
-        student1_loss = soft_label_cross_entropy(student1(**batch).logits, soft_labels2, labels, confidence_mask2)
-        student2_loss = soft_label_cross_entropy(student2(**batch).logits, soft_labels1, labels, confidence_mask1)
+        # Update students using enhanced loss function with dynamic confidence threshold
+        student1_loss = enhanced_loss_function(student1(**batch).logits, labels, soft_labels2, threshold2)
+        student2_loss = enhanced_loss_function(student2(**batch).logits, labels, soft_labels1, threshold1)
         
+        # Optimizer steps
         optimizer_s1.zero_grad()
         student1_loss.backward()
         optimizer_s1.step()
@@ -173,26 +121,16 @@ for epoch in range(NUM_EPOCHS):
         student2_loss.backward()
         optimizer_s2.step()
 
-        # Apply EMA to teacher models periodically
-        if (i + 1) % EMA_UPDATE_PERIOD == 0:
-            apply_ema(teacher1, student1)
-            apply_ema(teacher2, student2)
-    
-        predictions1 = torch.argmax(student1(**batch).logits, dim=-1)
-        accuracy1 = calculate_accuracy(predictions1, batch['labels'])
-
-        predictions2 = torch.argmax(student2(**batch).logits, dim=-1)
-        accuracy2 = calculate_accuracy(predictions2, batch['labels'])
-
-        # Logging
-        if i % 5 == 0:
-            logging.info(f'Epoch {epoch+1}/{NUM_EPOCHS}, Batch {i+1}/{len(train_loader)}, Train1 Loss: {student1_loss.item():.4f}, Train2 Loss: {student2_loss.item():.4f}, Accuracy1: {accuracy1:.4f}, Accuracy2: {accuracy2:.4f}')
+        # TensorBoard logging for training
         writer.add_scalar('Loss/Student1', student1_loss.item(), epoch * len(train_loader) + i)
         writer.add_scalar('Loss/Student2', student2_loss.item(), epoch * len(train_loader) + i)
-        writer.add_scalar('Accuracy/Student1', accuracy1, epoch * len(train_loader) + i)
-        writer.add_scalar('Accuracy/Student2', accuracy2, epoch * len(train_loader) + i)
-            
-    # Validation step
+
+        # Apply EMA periodically
+        if (i + 1) % EMA_UPDATE_PERIOD == 0:
+            apply_ema(teacher1, student1, ALPHA)
+            apply_ema(teacher2, student2, ALPHA)
+
+    # Validation step and early stopping
     eval_st1_loss, eval_st1_accuracy = evaluate_model(student1, validation_loader, device)
     eval_st2_loss, eval_st2_accuracy = evaluate_model(student2, validation_loader, device)
     logging.info(f'Epoch {epoch+1}/{NUM_EPOCHS}, St1 [Validation Loss: {eval_st1_loss:.4f}, Accuracy: {eval_st1_accuracy:.3f}] | St2 [Validation Loss: {eval_st2_loss:.4f}, Accuracy: {eval_st2_accuracy:.3f}]')
@@ -201,7 +139,7 @@ for epoch in range(NUM_EPOCHS):
     writer.add_scalar('Validation_Loss/Student2', eval_st2_loss, epoch)
     writer.add_scalar('Validation_Accuracy/Student2', eval_st2_accuracy, epoch)
 
-    # Early stopping
+    # Check for early stopping
     if eval_st1_accuracy > best_val_accuracy and eval_st2_accuracy > best_val_accuracy:
         best_val_accuracy = max(eval_st1_accuracy, eval_st2_accuracy)
         torch.save(student1.state_dict(), "student1_best_model.pt")
@@ -213,14 +151,14 @@ for epoch in range(NUM_EPOCHS):
             logging.info("Early stopping triggered!")
             break
 
-# Load the best models
-student1.load_state_dict(torch.load("student1_best_model.pt"))
-student2.load_state_dict(torch.load("student2_best_model.pt"))
-
 # Evaluate on test set
 test_st1_loss, test_st1_accuracy = evaluate_model(student1, test_loader, device)
 test_st2_loss, test_st2_accuracy = evaluate_model(student2, test_loader, device)
 logging.info(f'St1 [Test Loss: {test_st1_loss:.4f}, Accuracy: {test_st1_accuracy:.3f}] | St2 [Test Loss: {test_st2_loss:.4f}, Accuracy: {test_st2_accuracy:.3f}]')
+writer.add_scalar('Test_Loss/Student1', test_st1_loss)
+writer.add_scalar('Test_Accuracy/Student1', test_st1_accuracy)
+writer.add_scalar('Test_Loss/Student2', test_st2_loss)
+writer.add_scalar('Test_Accuracy/Student2', test_st2_accuracy)
 
-# Close tensorboard writer
+# Close TensorBoard writer
 writer.close()
