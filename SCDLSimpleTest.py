@@ -76,12 +76,12 @@ def evaluate_model(model, dataloader, device):
     total_eval_loss = 0
     total_correct = 0
     total_examples = 0
-    for batch in dataloader:
+    for batch in train_loader:
         batch = {k: v.to(device) for k, v in batch.items()}
         with torch.no_grad():
             output = model(**batch)
             logits = output.logits
-            loss = cross_entropy(logits.view(-1, NUM_LABELS), batch['labels'].view(-1), ignore_index=-100)
+            loss = F.cross_entropy(logits.view(-1, NUM_LABELS), batch['labels'].view(-1), ignore_index=-100)
             total_eval_loss += loss.item()
             predictions = torch.argmax(logits, dim=-1)
             correct_labels = batch['labels'] != -100
