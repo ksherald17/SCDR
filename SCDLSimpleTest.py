@@ -120,15 +120,20 @@ def adjust_confidence_threshold(dataloader, model, device, percentile=75):
     return threshold
 
 def enhanced_loss_function(outputs, labels, soft_labels, threshold):
+    # Assuming outputs are logits at each token position and labels are the same shape
+    outputs = outputs.view(-1, outputs.size(-1))  # Flatten output logits
+    labels = labels.view(-1)  # Flatten target labels
+    
     # Calculate the hard label loss using cross-entropy
     hard_loss = F.cross_entropy(outputs, labels, ignore_index=-100)
-    
-    # Calculate the soft label loss using KL divergence
-    soft_loss = F.kl_div(F.log_softmax(outputs, dim=-1), F.softmax(soft_labels, dim=-1), reduction='batchmean')
-    
+
+    # Soft labels need to be handled similarly if they are used
+    soft_labels = F.log_softmax(outputs, dim=-1)  # Log-softmax of outputs
+    soft_loss = F.kl_div(soft_labels, F.softmax(soft_labels, dim=-1), reduction='batchmean')
+
     # Apply a threshold to determine which loss to prioritize
     confidence_mask = (torch.max(soft_labels, dim=-1)[0] > threshold).float()
-    
+
     # Combine losses using the confidence mask
     combined_loss = (confidence_mask * soft_loss + (1 - confidence_mask) * hard_loss).mean()
     
