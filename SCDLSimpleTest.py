@@ -11,6 +11,7 @@ import os
 from torch.utils.tensorboard import SummaryWriter
 
 # Environment setup
+torch.autograd.set_detect_anomaly(True)
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = "expandable_segments:True"
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
