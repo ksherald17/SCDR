@@ -7,14 +7,14 @@ from torch.optim import AdamW
 from torch.nn import KLDivLoss
 import logging
 import numpy as np
+import os
 from torch.utils.tensorboard import SummaryWriter
 
-# Setup logging and TensorBoard writer
+# Environment setup
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = "expandable_segments:True"
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-writer = SummaryWriter()
 
 # Constants
-NUM_LABELS = dataset['train'].features['ner_tags'].feature.num_classes
 NUM_EPOCHS = 3
 BATCH_SIZE = 8
 ALPHA = 0.99
@@ -23,8 +23,27 @@ EMA_UPDATE_PERIOD = 10
 # Load and preprocess the dataset
 tokenizer = BertTokenizerFast.from_pretrained('bert-base-cased')
 dataset = load_dataset("conll2003")
+NUM_LABELS = dataset['train'].features['ner_tags'].feature.num_classes
+
+def tokenize_and_align_labels(examples):
+    tokenized_inputs = tokenizer(examples['tokens'], truncation=True, padding="max_length", is_split_into_words=True, return_token_type_ids=False)
+    labels = []
+    for i, label in enumerate(examples['ner_tags']):
+        word_ids = tokenized_inputs.word_ids(batch_index=i)
+        label_ids = [-100 if word_id is None else label[word_id] for word_id in word_ids]
+        labels.append(label_ids)
+    tokenized_inputs["labels"] = labels
+    return tokenized_inputs
+
 tokenized_datasets = dataset.map(tokenize_and_align_labels, batched=True)
 tokenized_datasets.set_format(type='torch', columns=['input_ids', 'attention_mask', 'labels'])
+
+def sample_dataset(dataset, sample_size=0.1):
+    return dataset.shuffle(seed=42).select(range(int(len(dataset) * sample_size)))
+
+train_dataset = sample_dataset(tokenized_datasets["train"])
+val_dataset = sample_dataset(tokenized_datasets["validation"])
+test_dataset = sample_dataset(tokenized_datasets["test"])
 
 # Initialize models
 teacher1 = BertForTokenClassification.from_pretrained('bert-base-uncased', num_labels=NUM_LABELS)
@@ -32,10 +51,10 @@ teacher2 = BertForTokenClassification.from_pretrained('bert-base-uncased', num_l
 student1 = DistilBertForTokenClassification.from_pretrained('distilbert-base-uncased', num_labels=NUM_LABELS)
 student2 = DistilBertForTokenClassification.from_pretrained('distilbert-base-uncased', num_labels=NUM_LABELS)
 
-# Prepare Dataset & Loaders
-train_loader = DataLoader(tokenized_datasets["train"], batch_size=BATCH_SIZE, shuffle=True)
-validation_loader = DataLoader(tokenized_datasets["validation"], batch_size=BATCH_SIZE)
-test_loader = DataLoader(tokenized_datasets["test"], batch_size=BATCH_SIZE)
+# Prepare DataLoader
+train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE)
+validation_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE)
+test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE)
 
 # Device setup
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -51,24 +70,7 @@ optimizer_s2 = AdamW(student2.parameters(), lr=5e-5)
 # Loss function
 kl_div_loss = KLDivLoss(reduction='batchmean')
 
-# Dynamic confidence threshold function
-def adjust_confidence_threshold(validation_loader, model, percentile=75):
-    softmax_outputs = []
-    model.eval()
-    with torch.no_grad():
-        for batch in validation_loader:
-            batch = {k: v.to(device) for k, v in batch.items()}
-            outputs = model(**batch).logits
-            softmax_outputs.extend(torch.softmax(outputs, dim=-1).max(dim=-1)[0].cpu().numpy())
-    return np.percentile(softmax_outputs, percentile)
-
-# Enhanced loss function with denoising
-def enhanced_loss_function(outputs, labels, soft_labels, threshold):
-    hard_loss = F.cross_entropy(outputs, labels, ignore_index=-100)
-    soft_loss = F.kl_div(F.log_softmax(outputs, dim=-1), soft_labels, reduction='batchmean')
-    confidence_mask = (torch.max(soft_labels, dim=-1)[0] > threshold).float()
-    return (confidence_mask * soft_loss + (1 - confidence_mask) * hard_loss).mean()
-
+# Function to evaluate model
 def evaluate_model(model, dataloader, device):
     model.eval()
     total_eval_loss = 0
@@ -77,9 +79,9 @@ def evaluate_model(model, dataloader, device):
     for batch in dataloader:
         batch = {k: v.to(device) for k, v in batch.items()}
         with torch.no_grad():
-            outputs = model(**batch)
-            logits = outputs.logits
-            loss = F.cross_entropy(logits.view(-1, NUM_LABELS), batch['labels'].view(-1), ignore_index=-100)
+            output = model(**batch)
+            logits = output.logits
+            loss = cross_entropy(logits.view(-1, NUM_LABELS), batch['labels'].view(-1), ignore_index=-100)
             total_eval_loss += loss.item()
             predictions = torch.argmax(logits, dim=-1)
             correct_labels = batch['labels'] != -100
@@ -87,6 +89,24 @@ def evaluate_model(model, dataloader, device):
             total_examples += correct_labels.sum().item()
     accuracy = total_correct / total_examples if total_examples > 0 else 0
     return total_eval_loss / len(dataloader), accuracy
+
+def apply_ema(teacher, student, alpha):
+    with torch.no_grad():
+        teacher_params = {name: param for name, param in teacher.named_parameters()}
+        student_params = {name: param for name, param in student.named_parameters()}
+        
+        for name, param in teacher_params.items():
+            if name in student_params:
+                student_param = student_params[name]
+                if param.data.shape == student_param.data.shape:
+                    param.data.copy_(alpha * param.data + (1 - alpha) * student_param.data)
+                else:
+                    logging.warning(f"Skipping EMA for {name} due to shape mismatch: {param.data.shape} vs {student_param.data.shape}")
+            else:
+                logging.warning(f"Student model missing parameter {name} for EMA")
+
+# TensorBoard setup
+writer = SummaryWriter()
 
 # Training loop
 best_val_accuracy = 0.0
