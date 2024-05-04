@@ -158,8 +158,7 @@ early_stopping_rounds = 5
 
 checkpoints_saved = 0
 max_checkpoints = 5  # Save at least 5 models
-checkpoint_dir = '/checkpoints/scdr'
-os.makedirs(checkpoint_dir, exist_ok=True)  # This creates the directory if it does not exist
+checkpoint_dir = './checkpoints/scdr'
 
 best_test_loss = float('inf')
 best_model_path = None
