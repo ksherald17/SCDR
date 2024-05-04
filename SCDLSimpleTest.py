@@ -248,11 +248,11 @@ writer.add_scalar('Test_Loss/Student2', test_st2_loss)
 writer.add_scalar('Test_Accuracy/Student2', test_st2_accuracy)
 
 if test_st1_loss < test_st2_loss:
-    best_model_path = f"{checkpoint_dir}/student1_best.pt"
-    print("Student 1 is the best model based on testing data.")
+    best_model_path = f"./student1_best.pt"
+    print("Student 1 is the best model based on testing data. - {test_st1_accuracy}")
 else:
-    best_model_path = f"{checkpoint_dir}/student2_best.pt"
-    print("Student 2 is the best model based on testing data.")
+    best_model_path = f"./student2_best.pt"
+    print("Student 2 is the best model based on testing data. - {test_st2_accuracy}")
 
 # Optionally, load and use the best model
 best_model = DistilBertForTokenClassification.from_pretrained('distilbert-base-uncased', num_labels=NUM_LABELS)
