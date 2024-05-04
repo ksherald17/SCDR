@@ -155,6 +155,15 @@ writer = SummaryWriter()
 best_val_accuracy = 0.0
 early_stopping_counter = 0
 early_stopping_rounds = 5
+
+checkpoints_saved = 0
+max_checkpoints = 5  # Save at least 5 models
+checkpoint_dir = '/checkpoints/scdr'
+os.makedirs(checkpoint_dir, exist_ok=True)  # This creates the directory if it does not exist
+
+best_test_loss = float('inf')
+best_model_path = None
+
 for epoch in range(NUM_EPOCHS):
     student1.train()
     student2.train()
@@ -180,7 +189,8 @@ for epoch in range(NUM_EPOCHS):
         batch_accuracy2 = calculate_batch_accuracy(student2(**batch).logits, labels)
 
         # Logging the batch accuracy
-        logging.info(f"Epoch {epoch+1}, Batch {i+1}, Student1 Accuracy: {batch_accuracy1:.2f}%, Student2 Accuracy: {batch_accuracy2:.2f}%")
+        if (i + 1) % 10 == 0:
+            logging.info(f"Epoch {epoch+1}, Batch {i+1}/{len(train_loader)}, Student1 Accuracy: {batch_accuracy1:.2f}%, Student2 Accuracy: {batch_accuracy2:.2f}%")
         
         # Optimizer steps
         optimizer_s1.zero_grad()
@@ -211,6 +221,12 @@ for epoch in range(NUM_EPOCHS):
     writer.add_scalar('Validation_Loss/Student2', eval_st2_loss, epoch)
     writer.add_scalar('Validation_Accuracy/Student2', eval_st2_accuracy, epoch)
 
+    # Save checkpoints for both models
+    if checkpoints_saved < max_checkpoints:
+        torch.save(student1.state_dict(), f"{checkpoint_dir}/student1_epoch_{epoch+1}.pt")
+        torch.save(student2.state_dict(), f"{checkpoint_dir}/student2_epoch_{epoch+1}.pt")
+        checkpoints_saved += 1
+
     # Check for early stopping
     if eval_st1_accuracy > best_val_accuracy and eval_st2_accuracy > best_val_accuracy:
         best_val_accuracy = max(eval_st1_accuracy, eval_st2_accuracy)
@@ -231,6 +247,18 @@ writer.add_scalar('Test_Loss/Student1', test_st1_loss)
 writer.add_scalar('Test_Accuracy/Student1', test_st1_accuracy)
 writer.add_scalar('Test_Loss/Student2', test_st2_loss)
 writer.add_scalar('Test_Accuracy/Student2', test_st2_accuracy)
+
+if test_st1_loss < test_st2_loss:
+    best_model_path = f"{checkpoint_dir}/student1_best.pt"
+    print("Student 1 is the best model based on testing data.")
+else:
+    best_model_path = f"{checkpoint_dir}/student2_best.pt"
+    print("Student 2 is the best model based on testing data.")
+
+# Optionally, load and use the best model
+best_model = DistilBertForTokenClassification.from_pretrained('distilbert-base-uncased', num_labels=NUM_LABELS)
+best_model.load_state_dict(torch.load(best_model_path))
+best_model.to(device)
 
 # Close TensorBoard writer
 writer.close()
