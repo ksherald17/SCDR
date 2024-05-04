@@ -39,7 +39,7 @@ def tokenize_and_align_labels(examples):
 tokenized_datasets = dataset.map(tokenize_and_align_labels, batched=True)
 tokenized_datasets.set_format(type='torch', columns=['input_ids', 'attention_mask', 'labels'])
 
-def sample_dataset(dataset, sample_size=0.01):
+def sample_dataset(dataset, sample_size=0.8):
     return dataset.shuffle(seed=42).select(range(int(len(dataset) * sample_size)))
 
 train_dataset = sample_dataset(tokenized_datasets["train"])
