@@ -101,16 +101,13 @@ def calculate_batch_accuracy(logits, labels):
 
 def apply_ema(teacher, student, alpha):
     with torch.no_grad():
-        teacher_params = {name: param for name, param in teacher.named_parameters()}
-        student_params = {name: param for name, param in student.named_parameters()}
-        
-        for name, param in teacher_params.items():
-            if name in student_params:
-                student_param = student_params[name]
-                if param.data.shape == student_param.data.shape:
-                    param.data.copy_(alpha * param.data + (1 - alpha) * student_param.data)
-                else:
-                    logging.warning(f"Skipping EMA for {name} due to shape mismatch: {param.data.shape} vs {student_param.data.shape}")
+        for teacher_name, teacher_param in teacher.named_parameters():
+            if teacher_name in student.named_parameters():
+                student_param = student.named_parameters()[teacher_name]
+                updated_param = alpha * teacher_param.data + (1 - alpha) * student_param.data
+                teacher_param.data = updated_param  # Out-of-place update
+            else:
+                logging.warning(f"Skipping EMA for {name} due to shape mismatch: {param.data.shape} vs {student_param.data.shape}")
 
 def adjust_confidence_threshold(dataloader, model, device, percentile=75):
     all_confidences = []
