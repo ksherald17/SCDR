@@ -52,7 +52,7 @@ def warmup_lr_scheduler(optimizer, total_steps, warmup_steps, initial_lr):
         return max(0.0, float(total_steps - current_step) / float(max(1, total_steps - warmup_steps)))
     return LambdaLR(optimizer, lr_lambda)
 
-def sample_dataset(dataset, sample_size=0.05):
+def sample_dataset(dataset, sample_size=0.01):
     return dataset.shuffle(seed=42).select(range(int(len(dataset) * sample_size)))
 
 tokenized_datasets = dataset.map(tokenize_and_align_labels, batched=True)
@@ -83,6 +83,9 @@ scheduler_s1 = warmup_lr_scheduler(optimizer_s1, len(train_loader)*NUM_EPOCHS, l
 scheduler_s2 = warmup_lr_scheduler(optimizer_s2, len(train_loader)*NUM_EPOCHS, len(train_loader)*WARMUP_EPOCHS, 5e-5)
 
 kl_div_loss = KLDivLoss(reduction='batchmean')
+
+best_test_loss = float('inf')
+best_model_path = None
 
 # TensorBoard setup
 writer = SummaryWriter()
