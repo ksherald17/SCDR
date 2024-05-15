@@ -95,7 +95,7 @@ def evaluate_model(model, dataloader, device):
     total_eval_loss = 0
     all_predictions = []
     all_true_labels = []
-    
+
     for batch in dataloader:
         batch = {k: v.to(device) for k, v in batch.items()}
         with torch.no_grad():
@@ -103,14 +103,19 @@ def evaluate_model(model, dataloader, device):
             logits = output.logits
             loss = F.cross_entropy(logits.view(-1, NUM_LABELS), batch['labels'].view(-1), ignore_index=-100)
             total_eval_loss += loss.item()
-            
-            predictions = torch.argmax(logits, dim=-1).view(-1)
-            true_labels = batch['labels'].view(-1)
-            valid_indices = true_labels != -100
-            
-            all_predictions.extend(predictions[valid_indices].cpu().numpy())
-            all_true_labels.extend(true_labels[valid_indices].cpu().numpy())
 
+            predictions = torch.argmax(logits, dim=-1).view(-1)  # Flatten predictions
+            true_labels = batch['labels'].view(-1)  # Flatten true labels
+
+            # Filter out `-100` used for padding tokens from the evaluation
+            valid_indices = true_labels != -100
+            valid_predictions = predictions[valid_indices]
+            valid_true_labels = true_labels[valid_indices]
+
+            all_predictions.extend(valid_predictions.cpu().numpy())
+            all_true_labels.extend(valid_true_labels.cpu().numpy())
+
+    # Calculate precision, recall, and F1-score for the valid predictions only
     precision = precision_score(all_true_labels, all_predictions, average='macro', zero_division=0)
     recall = recall_score(all_true_labels, all_predictions, average='macro', zero_division=0)
     f1 = f1_score(all_true_labels, all_predictions, average='macro', zero_division=0)
@@ -276,10 +281,10 @@ writer.add_scalar('Test_F1-Score/Student2', test_st2_f1)
 
 # Compare test losses to determine the best model
 if test_st1_loss < test_st2_loss:
-    best_model_path = "./student1_best.pt"
+    best_model_path = "{checkpoint_dir}/student1_best.pt"
     print(f"Student 1 is the best model based on testing data. - Loss: {test_st1_loss:.4f}")
 else:
-    best_model_path = "./student2_best.pt"
+    best_model_path = "{checkpoint_dir}/student2_best.pt"
     print(f"Student 2 is the best model based on testing data. - Loss: {test_st2_loss:.4f}")
 
 # Optionally, load and use the best model
