@@ -19,7 +19,7 @@ os.environ['PYTORCH_CUDA_ALLOC_CONF'] = "expandable_segments:True"
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Constants
-NUM_EPOCHS = 3
+NUM_EPOCHS = 1
 BATCH_SIZE = 8
 ALPHA = 0.99
 EMA_UPDATE_PERIOD = 10
@@ -52,7 +52,7 @@ def warmup_lr_scheduler(optimizer, total_steps, warmup_steps, initial_lr):
         return max(0.0, float(total_steps - current_step) / float(max(1, total_steps - warmup_steps)))
     return LambdaLR(optimizer, lr_lambda)
 
-def sample_dataset(dataset, sample_size=0.01):
+def sample_dataset(dataset, sample_size=0.2):
     return dataset.shuffle(seed=42).select(range(int(len(dataset) * sample_size)))
 
 tokenized_datasets = dataset.map(tokenize_and_align_labels, batched=True)
