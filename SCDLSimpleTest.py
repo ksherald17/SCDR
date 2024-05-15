@@ -244,8 +244,8 @@ for epoch in range(NUM_EPOCHS):
     # Save checkpoints for both models
     if eval_loss < best_test_loss:
         best_test_loss = eval_loss
-        torch.save(student1.state_dict(), f"{checkpoint_dir}/student1_best_model.pt")
-        torch.save(student2.state_dict(), f"{checkpoint_dir}/student2_best_model.pt")
+        torch.save(student1.state_dict(), f"{checkpoint_dir}/student1_best.pt")
+        torch.save(student2.state_dict(), f"{checkpoint_dir}/student2_best.pt")
         best_val_accuracy = max(eval_loss, best_val_accuracy)  # Update best_val_accuracy with the lowest loss
 
     if eval_loss < best_test_loss:
