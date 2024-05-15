@@ -281,10 +281,10 @@ writer.add_scalar('Test_F1-Score/Student2', test_st2_f1)
 
 # Compare test losses to determine the best model
 if test_st1_loss < test_st2_loss:
-    best_model_path = "{checkpoint_dir}/student1_best.pt"
+    best_model_path = f"{checkpoint_dir}/student1_best.pt"
     print(f"Student 1 is the best model based on testing data. - Loss: {test_st1_loss:.4f}")
 else:
-    best_model_path = "{checkpoint_dir}/student2_best.pt"
+    best_model_path = f"{checkpoint_dir}/student2_best.pt"
     print(f"Student 2 is the best model based on testing data. - Loss: {test_st2_loss:.4f}")
 
 # Optionally, load and use the best model
