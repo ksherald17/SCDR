@@ -95,7 +95,7 @@ def evaluate_model(model, dataloader, device):
     total_eval_loss = 0
     all_predictions = []
     all_true_labels = []
-
+    
     for batch in dataloader:
         batch = {k: v.to(device) for k, v in batch.items()}
         with torch.no_grad():
@@ -103,22 +103,21 @@ def evaluate_model(model, dataloader, device):
             logits = output.logits
             loss = F.cross_entropy(logits.view(-1, NUM_LABELS), batch['labels'].view(-1), ignore_index=-100)
             total_eval_loss += loss.item()
-
-            predictions = torch.argmax(logits, dim=-1).view(-1)  # Flatten predictions
-            true_labels = batch['labels'].view(-1)  # Flatten true labels
-
-            # Filter out `-100` used for padding tokens from the evaluation
-            valid_indices = true_labels != -100
+            
+            predictions = torch.argmax(logits, dim=-1).view(-1)
+            true_labels = batch['labels'].view(-1)
+            valid_indices = true_labels != -100  # Exclude padding
+            
             valid_predictions = predictions[valid_indices]
             valid_true_labels = true_labels[valid_indices]
-
+            
             all_predictions.extend(valid_predictions.cpu().numpy())
             all_true_labels.extend(valid_true_labels.cpu().numpy())
 
-    # Calculate precision, recall, and F1-score for the valid predictions only
-    precision = precision_score(all_true_labels, all_predictions, average='macro', zero_division=0)
-    recall = recall_score(all_true_labels, all_predictions, average='macro', zero_division=0)
-    f1 = f1_score(all_true_labels, all_predictions, average='macro', zero_division=0)
+    # Calculate precision, recall, and F1-score considering potential class imbalance
+    precision = precision_score(all_true_labels, all_predictions, average='weighted', zero_division=0)
+    recall = recall_score(all_true_labels, all_predictions, average='weighted', zero_division=0)
+    f1 = f1_score(all_true_labels, all_predictions, average='weighted', zero_division=0)
 
     return total_eval_loss / len(dataloader), precision, recall, f1
 
