@@ -257,20 +257,30 @@ for epoch in range(NUM_EPOCHS):
             break
 
 # Evaluate on test set
-test_st1_loss, test_st1_accuracy = evaluate_model(student1, test_loader, device)
-test_st2_loss, test_st2_accuracy = evaluate_model(student2, test_loader, device)
-logging.info(f'St1 [Test Loss: {test_st1_loss:.4f}, Accuracy: {test_st1_accuracy:.3f}] | St2 [Test Loss: {test_st2_loss:.4f}, Accuracy: {test_st2_accuracy:.3f}]')
-writer.add_scalar('Test_Loss/Student1', test_st1_loss)
-writer.add_scalar('Test_Accuracy/Student1', test_st1_accuracy)
-writer.add_scalar('Test_Loss/Student2', test_st2_loss)
-writer.add_scalar('Test_Accuracy/Student2', test_st2_accuracy)
+test_st1_metrics = evaluate_model(student1, test_loader, device)
+test_st1_loss, test_st1_precision, test_st1_recall, test_st1_f1 = test_st1_metrics
+test_st2_metrics = evaluate_model(student2, test_loader, device)
+test_st2_loss, test_st2_precision, test_st2_recall, test_st2_f1 = test_st2_metrics
 
+logging.info(f'St1 [Test Loss: {test_st1_loss:.4f}, Precision: {test_st1_precision:.3f}, Recall: {test_st1_recall:.3f}, F1-Score: {test_st1_f1:.3f}] | '
+             f'St2 [Test Loss: {test_st2_loss:.4f}, Precision: {test_st2_precision:.3f}, Recall: {test_st2_recall:.3f}, F1-Score: {test_st2_f1:.3f}]')
+
+writer.add_scalar('Test_Loss/Student1', test_st1_loss)
+writer.add_scalar('Test_Precision/Student1', test_st1_precision)
+writer.add_scalar('Test_Recall/Student1', test_st1_recall)
+writer.add_scalar('Test_F1-Score/Student1', test_st1_f1)
+writer.add_scalar('Test_Loss/Student2', test_st2_loss)
+writer.add_scalar('Test_Precision/Student2', test_st2_precision)
+writer.add_scalar('Test_Recall/Student2', test_st2_recall)
+writer.add_scalar('Test_F1-Score/Student2', test_st2_f1)
+
+# Compare test losses to determine the best model
 if test_st1_loss < test_st2_loss:
-    best_model_path = f"./student1_best.pt"
-    print(f"Student 1 is the best model based on testing data. - {test_st1_accuracy}")
+    best_model_path = "./student1_best.pt"
+    print(f"Student 1 is the best model based on testing data. - Loss: {test_st1_loss:.4f}")
 else:
-    best_model_path = f"./student2_best.pt"
-    print(f"Student 2 is the best model based on testing data. - {test_st2_accuracy}")
+    best_model_path = "./student2_best.pt"
+    print(f"Student 2 is the best model based on testing data. - Loss: {test_st2_loss:.4f}")
 
 # Optionally, load and use the best model
 best_model = DistilBertForTokenClassification.from_pretrained('distilbert-base-uncased', num_labels=NUM_LABELS)
@@ -279,3 +289,4 @@ best_model.to(device)
 
 # Close TensorBoard writer
 writer.close()
+
