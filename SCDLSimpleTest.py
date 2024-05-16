@@ -20,7 +20,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 # Constants
 NUM_EPOCHS = 1
-BATCH_SIZE = 8
+BATCH_SIZE = 6
 ALPHA = 0.99
 EMA_UPDATE_PERIOD = 10
 WARMUP_EPOCHS = 1
@@ -37,6 +37,29 @@ NUM_LABELS = dataset['train'].features['ner_tags'].feature.num_classes
 
 checkpoint_dir = './checkpoints/scdr'
 
+def random_masking(inputs, labels, tokenizer, mask_probability=0.15):
+    """ Randomly masks tokens witha given probability. """
+    rand = torch.rand(inputs.shape)
+    mask_arr = (rand < mask_probability) & (inputs != tokenizer.pad_token_id) & (inputs != tokenizer.sep_token_id) & (inputs != tokenizer.cls_token_id)
+    inputs[mask_arr] = tokenizer.mask_token_id
+    labels[~mask_arr] = -100  # We only compute loss on masked tokens
+    return inputs, labels
+
+def tokenize_and_align_random_mask_labels(examples):
+    tokenized_inputs = tokenizer(examples['tokens'], truncation=True, padding="max_length", is_split_into_words=True, return_token_type_ids=False)
+    labels = []
+    for i, label in enumerate(examples['ner_tags']):
+        word_ids = tokenized_inputs.word_ids(batch_index=i)  # Map tokens to their word IDs
+        label_ids = [-100 if word_id is None else label[word_id] for word_id in word_ids]
+        labels.append(label_ids)
+    
+    input_ids = torch.tensor(tokenized_inputs['input_ids'])
+    labels = torch.tensor(labels)
+    # Apply random masking
+    input_ids, labels = random_masking(input_ids, labels, tokenizer)
+
+    return {'input_ids': input_ids, 'attention_mask': tokenized_inputs['attention_mask'], 'labels': labels}
+
 def tokenize_and_align_labels(examples):
     tokenized_inputs = tokenizer(examples['tokens'], truncation=True, padding="max_length", is_split_into_words=True, return_token_type_ids=False)
     labels = []
@@ -46,6 +69,7 @@ def tokenize_and_align_labels(examples):
         labels.append(label_ids)
     tokenized_inputs["labels"] = labels
     return tokenized_inputs
+
 
 def warmup_lr_scheduler(optimizer, total_steps, warmup_steps, initial_lr):
     def lr_lambda(current_step: int):
@@ -108,6 +132,8 @@ for epoch in range(NUM_PRETRAIN_EPOCHS):
 # Save the pre-trained teacher models
 torch.save(teacher1.state_dict(), os.path.join(checkpoint_dir, 'teacher1_pretrained.pth'))
 torch.save(teacher2.state_dict(), os.path.join(checkpoint_dir, 'teacher2_pretrained.pth'))
+
+torch.cuda.empty_cache()  # Use it judiciously, as too frequent cache clearing can lead to performance degradation.
 
 kl_div_loss = KLDivLoss(reduction='batchmean')
 
