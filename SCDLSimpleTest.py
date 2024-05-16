@@ -78,10 +78,10 @@ def warmup_lr_scheduler(optimizer, total_steps, warmup_steps, initial_lr):
         return max(0.0, float(total_steps - current_step) / float(max(1, total_steps - warmup_steps)))
     return LambdaLR(optimizer, lr_lambda)
 
-def sample_dataset(dataset, sample_size=0.05):
+def sample_dataset(dataset, sample_size=0.1):
     return dataset.shuffle(seed=42).select(range(int(len(dataset) * sample_size)))
 
-tokenized_datasets = dataset.map(tokenize_and_align_labels, batched=True)
+tokenized_datasets = dataset.map(tokenize_and_align_random_mask_labels, batched=True)
 tokenized_datasets.set_format(type='torch', columns=['input_ids', 'attention_mask', 'labels'])
 
 train_dataset = sample_dataset(tokenized_datasets["train"])
@@ -112,28 +112,28 @@ optimizer_t1 = AdamW(teacher1.parameters(), lr=5e-5)
 optimizer_t2 = AdamW(teacher2.parameters(), lr=5e-5)
 
 # Pre-training Teacher Models
-for epoch in range(NUM_PRETRAIN_EPOCHS):
-    teacher1.train()
-    teacher2.train()
-    for batch in train_loader:
-        batch = {k: v.to(device) for k, v in batch.items()}
-        outputs1 = teacher1(**batch)
-        loss1 = outputs1.loss
-        loss1.backward()
-        optimizer_t1.step()
-        optimizer_t1.zero_grad()
+# for epoch in range(NUM_PRETRAIN_EPOCHS):
+#     teacher1.train()
+#     teacher2.train()
+#     for batch in train_loader:
+#         batch = {k: v.to(device) for k, v in batch.items()}
+#         outputs1 = teacher1(**batch)
+#         loss1 = outputs1.loss
+#         loss1.backward()
+#         optimizer_t1.step()
+#         optimizer_t1.zero_grad()
 
-        outputs2 = teacher2(**batch)
-        loss2 = outputs2.loss
-        loss2.backward()
-        optimizer_t2.step()
-        optimizer_t2.zero_grad()
+#         outputs2 = teacher2(**batch)
+#         loss2 = outputs2.loss
+#         loss2.backward()
+#         optimizer_t2.step()
+#         optimizer_t2.zero_grad()
 
-# Save the pre-trained teacher models
-torch.save(teacher1.state_dict(), os.path.join(checkpoint_dir, 'teacher1_pretrained.pth'))
-torch.save(teacher2.state_dict(), os.path.join(checkpoint_dir, 'teacher2_pretrained.pth'))
+# # Save the pre-trained teacher models
+# torch.save(teacher1.state_dict(), os.path.join(checkpoint_dir, 'teacher1_pretrained.pth'))
+# torch.save(teacher2.state_dict(), os.path.join(checkpoint_dir, 'teacher2_pretrained.pth'))
 
-torch.cuda.empty_cache()  # Use it judiciously, as too frequent cache clearing can lead to performance degradation.
+# torch.cuda.empty_cache()  # Use it judiciously, as too frequent cache clearing can lead to performance degradation.
 
 kl_div_loss = KLDivLoss(reduction='batchmean')
 
