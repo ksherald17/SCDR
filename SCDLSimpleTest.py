@@ -24,7 +24,7 @@ BATCH_SIZE = 8
 ALPHA = 0.99
 EMA_UPDATE_PERIOD = 10
 WARMUP_EPOCHS = 1
-NUM_PRETRAIN_EPOCHS = 3
+NUM_PRETRAIN_EPOCHS = 1
 
 
 # Initialize a heap to store the top models with their performance
@@ -104,8 +104,6 @@ for epoch in range(NUM_PRETRAIN_EPOCHS):
         loss2.backward()
         optimizer_t2.step()
         optimizer_t2.zero_grad()
-
-        logging.info(f"Pre-training - Epoch {epoch+1}, Teacher1 Loss: {loss1.item()}, Teacher2 Loss: {loss2.item()}")
 
 # Save the pre-trained teacher models
 torch.save(teacher1.state_dict(), os.path.join(checkpoint_dir, 'teacher1_pretrained.pth'))
