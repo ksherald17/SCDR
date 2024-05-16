@@ -24,6 +24,8 @@ BATCH_SIZE = 8
 ALPHA = 0.99
 EMA_UPDATE_PERIOD = 10
 WARMUP_EPOCHS = 1
+NUM_PRETRAIN_EPOCHS = 3
+
 
 # Initialize a heap to store the top models with their performance
 best_models_heap = []
@@ -52,7 +54,7 @@ def warmup_lr_scheduler(optimizer, total_steps, warmup_steps, initial_lr):
         return max(0.0, float(total_steps - current_step) / float(max(1, total_steps - warmup_steps)))
     return LambdaLR(optimizer, lr_lambda)
 
-def sample_dataset(dataset, sample_size=0.2):
+def sample_dataset(dataset, sample_size=0.05):
     return dataset.shuffle(seed=42).select(range(int(len(dataset) * sample_size)))
 
 tokenized_datasets = dataset.map(tokenize_and_align_labels, batched=True)
@@ -81,6 +83,33 @@ optimizer_s1 = AdamW(student1.parameters(), lr=5e-5)
 optimizer_s2 = AdamW(student2.parameters(), lr=5e-5)
 scheduler_s1 = warmup_lr_scheduler(optimizer_s1, len(train_loader)*NUM_EPOCHS, len(train_loader)*WARMUP_EPOCHS, 5e-5)
 scheduler_s2 = warmup_lr_scheduler(optimizer_s2, len(train_loader)*NUM_EPOCHS, len(train_loader)*WARMUP_EPOCHS, 5e-5)
+
+optimizer_t1 = AdamW(teacher1.parameters(), lr=5e-5)
+optimizer_t2 = AdamW(teacher2.parameters(), lr=5e-5)
+
+# Pre-training Teacher Models
+for epoch in range(NUM_PRETRAIN_EPOCHS):
+    teacher1.train()
+    teacher2.train()
+    for batch in train_loader:
+        batch = {k: v.to(device) for k, v in batch.items()}
+        outputs1 = teacher1(**batch)
+        loss1 = outputs1.loss
+        loss1.backward()
+        optimizer_t1.step()
+        optimizer_t1.zero_grad()
+
+        outputs2 = teacher2(**batch)
+        loss2 = outputs2.loss
+        loss2.backward()
+        optimizer_t2.step()
+        optimizer_t2.zero_grad()
+
+        logging.info(f"Pre-training - Epoch {epoch+1}, Teacher1 Loss: {loss1.item()}, Teacher2 Loss: {loss2.item()}")
+
+# Save the pre-trained teacher models
+torch.save(teacher1.state_dict(), os.path.join(checkpoint_dir, 'teacher1_pretrained.pth'))
+torch.save(teacher2.state_dict(), os.path.join(checkpoint_dir, 'teacher2_pretrained.pth'))
 
 kl_div_loss = KLDivLoss(reduction='batchmean')
 
